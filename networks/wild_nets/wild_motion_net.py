@@ -2,7 +2,6 @@
 import torch
 import torch.nn as nn
 import torchvision.models as models
-import torch.utils.model_zoo as model_zoo
 
 class RefinementLayer(nn.Module):
     def __init__(self, num_channel, dims, num_motion_fields=3):
@@ -75,8 +74,6 @@ class MotionPredictionNet(nn.Module):
         return RefinementLayer(ch, dims)
 
     def forward(self, translation, features):
-        # TODO: check the effect of apply trans_scale on translation
-
         residual_translation = self.refinement1(translation, features[7])
         residual_translation = self.refinement2(
                 residual_translation, features[6])

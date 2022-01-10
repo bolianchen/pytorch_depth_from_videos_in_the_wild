@@ -4,18 +4,8 @@ import torch.nn as nn
 import torchvision.models as models
 import torch.utils.model_zoo as model_zoo
 
-class RotTransScaler(nn.Module):
-    def __init__(self):
-        super(RotTransScaler, self).__init__()
-        self.rot_scale = torch.nn.Parameter(torch.tensor(0.01), requires_grad=True)
-        self.trans_scale = torch.nn.Parameter(torch.tensor(0.01), requires_grad=True)
-    def forward(self, x, rot_or_trans):
-        if rot_or_trans == 'rot':
-            return x * self.rot_scale
-        elif rot_or_trans == 'trans':
-            return x * self.trans_scale
-
 class PosePredictionNet(nn.Module):
+    """The network to predict the camera's pose and translation (global)"""
     def __init__(self, input_dims, num_input_images=2):
         super(PosePredictionNet, self).__init__()
         self.input_dims = input_dims
@@ -116,5 +106,17 @@ class PosePredictionNet(nn.Module):
         rotation = background_motion[:,:3, 0, 0]
         translation = background_motion[:,3:, :, :]
 
-        return rotation, translation, self.features
+        return rotation, translation, bottleneck, self.features
+
+class RotTransScaler(nn.Module):
+    """The network to learn a scale factor shared by rotation and translation"""
+    def __init__(self):
+        super(RotTransScaler, self).__init__()
+        self.rot_scale = torch.nn.Parameter(torch.tensor(0.01), requires_grad=True)
+        self.trans_scale = torch.nn.Parameter(torch.tensor(0.01), requires_grad=True)
+    def forward(self, x, rot_or_trans):
+        if rot_or_trans == 'rot':
+            return x * self.rot_scale
+        elif rot_or_trans == 'trans':
+            return x * self.trans_scale
 

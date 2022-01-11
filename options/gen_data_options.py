@@ -89,6 +89,7 @@ class DataGenOptions:
                                       'during the training')
         self.parser.add_argument('--fps',
                                  type=int,
+                                 default=10,
                                  help='frames per second to sample from a '
                                       ' video to do the conversion')
         self.parser.add_argument('--delete_temp',

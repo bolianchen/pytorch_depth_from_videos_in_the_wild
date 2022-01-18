@@ -122,8 +122,8 @@ class MonoDataset(data.Dataset):
         if self.seg_mask != 'none':
             self.process_masks(inputs, self.seg_mask)
 
-        if random.random() < self.prob_to_mask_objects:
-            self.mask_objects(inputs)
+            if random.random() < self.prob_to_mask_objects:
+                self.mask_objects(inputs)
 
     def process_masks(self, inputs, mask_mode):
         """Convert segmentation masks to binary masks

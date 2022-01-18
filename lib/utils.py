@@ -122,9 +122,11 @@ def args_validity_check(*unknown_args):
     base_unknown_args = unknown_args[0]
 
     for arg in base_unknown_args:
+        # assume each arg contains "--"
+        if '--' not in arg:
+            continue
         # if an argument contained by all members in the unknown_args
         # raise error for the first detected unrecognized argument
         contained = [(arg in ua) for ua in unknown_args[1:]]
-        if False in contained:
-            f"unrecognized argument {arg} by all parsers"
-
+        assert not all(contained), (
+        f"unrecognized argument {arg} by all parsers")

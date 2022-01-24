@@ -84,12 +84,24 @@ class BaseOptions:
                                       'xavier_normal_ or kaiming_uniform')
 
         # LOAD TRAINED MODELS and FREEZE MODELS
-        # which networks to load and to freeze are further defined
-        # by the models_to_load and models_to_freeze options in
-        # method-specific options.py
         self.parser.add_argument('--load_weights_folder',
                                  type=str,
                                  help='path of the model to load')
+
+        self.parser.add_argument('--models_to_load',
+                                 nargs='+',
+                                 type=str,
+                                 default=[],
+                                 help='networks to load from the folder '
+                                      'defined by the load_weights_folder '
+                                      ' that is in the base_options.py'
+                                      'Selectable from encoder, depth, pose, '
+                                      'motion, scaler, and intrinsics_head')
+        self.parser.add_argument('--models_to_freeze',
+                                 nargs='+',
+                                 type=str,
+                                 default=[],
+                                 help='models to freeze')
 
         # DATASET PREPROCESSING
         self.parser.add_argument('--subset_ratio', # mixed datasets

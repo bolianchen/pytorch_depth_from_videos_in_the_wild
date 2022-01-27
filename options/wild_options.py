@@ -6,6 +6,9 @@ import os
 import argparse
 from .base_options import BaseOptions
 
+WILD_NETWORKS = ['encoder', 'depth', 'pose', 'motion', 'scaler',
+                 'intrinsics_head']
+
 class WildOptions(BaseOptions):
     def __init__(self):
         
@@ -128,22 +131,6 @@ class WildOptions(BaseOptions):
                                  default=[0.5],
                                  help='')
 
-        # LOAD TRAINED MODELS
-        self.parser.add_argument('--models_to_load',
-                                 nargs='+',
-                                 type=str,
-                                 default=[],
-                                 help='networks to load from the folder '
-                                      'defined by the load_weights_folder '
-                                      ' that is in the base_options.py'
-                                      'Selectable from encoder, depth, pose, '
-                                      'motion, scaler, and intrinsics_head')
-        self.parser.add_argument('--models_to_freeze',
-                                 nargs='+',
-                                 type=str,
-                                 default=[],
-                                 help='models to freeze')
-
         # LOSS COMPUTATIONS
         self.parser.add_argument('--losses_to_use',
                                  nargs='+',
@@ -232,4 +219,8 @@ class WildOptions(BaseOptions):
                 self.options.models_to_init.pop(idx)
         except:
             pass
+
+        assert all(m in WILD_NETWORKS for m in self.options.models_to_load)
+        assert all(m in WILD_NETWORKS for m in self.options.models_to_freeze)
+
         return self.options, unknown_args

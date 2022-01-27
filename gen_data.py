@@ -52,8 +52,8 @@ def _generate_data():
             augment_strategy=FLAGS.augment_strategy,
             augment_shift_h=FLAGS.augment_shift_h,
             fps=FLAGS.fps,
-            video_start=FLAGS.video_start.seconds,
-            video_end=FLAGS.video_end.seconds,
+            video_start=FLAGS.video_start,
+            video_end=FLAGS.video_end,
             img_ext=FLAGS.save_img_ext
         )
     elif FLAGS.dataset_name == 'kitti_raw_eigen':

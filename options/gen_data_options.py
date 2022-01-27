@@ -86,13 +86,13 @@ class DataGenOptions:
                                       'a frame. this only applies when augment'
                                       '_strategy is set to single')
         self.parser.add_argument('--video_start',
-                                 type=pd.Timedelta,
+                                 type=str,
                                  default='00:00:00',
                                  help='set a start time for the video '
                                       'conversion; the format should be '
                                       'hh:mm:ss')
         self.parser.add_argument('--video_end',
-                                 type=pd.Timedelta,
+                                 type=str,
                                  default='00:00:00',
                                  help='set an end time for the video '
                                       'conversion; the format should be '

@@ -14,6 +14,7 @@ import torch
 
 from absl import logging
 import numpy as np
+import pandas as pd
 import imageio
 from PIL import Image
 import cv2
@@ -68,8 +69,8 @@ class Video(BaseLoader):
         self.augment_strategy = augment_strategy
         self.augment_shift_h = augment_shift_h
         self.fps = fps
-        self.video_start = video_start * 1000 # seconds to miliseconds
-        self.video_end = video_end * 1000
+        self.video_start = pd.Timedelta(video_start).seconds * 1000 # seconds to miliseconds
+        self.video_end = pd.Timedelta(video_end).seconds * 1000
         self.img_ext = img_ext
 
         # Collect frames from videos

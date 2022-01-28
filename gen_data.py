@@ -9,6 +9,7 @@ from __future__ import print_function
 import itertools
 import multiprocessing
 import os
+import yaml
 from absl import app
 from absl import flags
 from absl import logging
@@ -33,6 +34,12 @@ def _generate_data():
     Extract sequences from dataset_dir and store them in save_dir.
     """
     os.makedirs(FLAGS.save_dir, exist_ok=True)
+
+    if FLAGS.to_yaml:
+        # Save the options to a YAML configuration in save_dir
+        yaml_filename = os.path.join(FLAGS.save_dir, 'config.yaml')
+        with open(yaml_filename, 'w') as f:
+            yaml.dump(vars(FLAGS), f, default_flow_style=False)
 
     global dataloader  # pylint: disable=global-variable-undefined
     if FLAGS.dataset_name == 'video':

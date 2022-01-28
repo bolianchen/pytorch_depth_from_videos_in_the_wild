@@ -2,6 +2,7 @@
 
 import os
 import argparse
+import yaml
 import pandas as pd
 
 # TODO: add comments
@@ -12,15 +13,16 @@ class DataGenOptions:
         self.parser = argparse.ArgumentParser(
                 description='Options for training data generation')
         self.parser.add_argument('--dataset_name',
-                                 type=str, choices=DATASETS, required=True,
+                                 type=str, choices=DATASETS,
+                                 default='video',
                                  help='what raw dataset to convert'
                                       'video: videos in mp4 format')
         self.parser.add_argument('--dataset_dir',
-                                 type=str, required=True,
+                                 type=str, default='./raw_data',
                                  help='location of the folder containing the '
                                       'raw dataset')
         self.parser.add_argument('--save_dir',
-                                 type=str, required=True,
+                                 type=str, default='./generated_data',
                                  help='location to save the generated '
                                       'training data.')
         self.parser.add_argument('--save_img_ext',
@@ -54,9 +56,6 @@ class DataGenOptions:
                                  type=str, default=None,
                                  help='a document containing 9 entries '
                                       'of the flattened target intrinsics')
-        # TODO: refactor cut and crop related codes
-        # refactor to [x1, x2, y1, y2] format in the future
-        # cut does not induce intrinsics adjustment but crop does
         self.parser.add_argument('--trim',
                                  nargs=4,
                                  type=float, default=[0.0, 0.0, 0.0, 0.0],
@@ -129,6 +128,27 @@ class DataGenOptions:
                                  action='store_true',
                                  help='only use a single gpu process '
                                       'this option is mainly for debugging')
+        self.parser.add_argument('--to_yaml',
+                                 action='store_true',
+                                 help='save the options to a yaml file')
 
     def parse(self):
-        return self.parser.parse_args()
+        """
+        Parse arguments from both command line and YAML configuration.
+        The order of looking for the value for an argument is as follows:
+        command line -> YAML configuration (if provided) -> default value.
+        """
+        conf_parser = argparse.ArgumentParser(add_help=False)
+        conf_parser.add_argument('--config',
+                                 type=str, default=None,
+                                 help='the path to load YAML configuration; '
+                                      'options set in this file may be '
+                                      'overridden by command-line arguments')
+        conf_arg, remaining_args = conf_parser.parse_known_args()
+
+        if conf_arg.config:
+             with open(conf_arg.config, 'r') as f:
+               config = yaml.load(f, yaml.FullLoader)
+             self.parser.set_defaults(**config)
+     
+        return self.parser.parse_args(remaining_args)

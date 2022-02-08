@@ -2,6 +2,8 @@
 
 import os
 import argparse
+import yaml
+import pandas as pd
 
 # TODO: add comments
 DATASETS = ['video', 'kitti_raw_eigen', 'kitti_raw_stereo']
@@ -11,15 +13,16 @@ class DataGenOptions:
         self.parser = argparse.ArgumentParser(
                 description='Options for training data generation')
         self.parser.add_argument('--dataset_name',
-                                 type=str, choices=DATASETS, required=True,
+                                 type=str, choices=DATASETS,
+                                 default='video',
                                  help='what raw dataset to convert'
                                       'video: videos in mp4 format')
         self.parser.add_argument('--dataset_dir',
-                                 type=str, required=True,
+                                 type=str, default='./raw_data',
                                  help='location of the folder containing the '
                                       'raw dataset')
         self.parser.add_argument('--save_dir',
-                                 type=str, required=True,
+                                 type=str, default='./generated_data',
                                  help='location to save the generated '
                                       'training data.')
         self.parser.add_argument('--save_img_ext',
@@ -49,44 +52,51 @@ class DataGenOptions:
                                  help='remove frames when the camera is '
                                       'judged as not moving with a heuristic '
                                       'algorithm implemented by us')
-        # TODO: refactor cut and crop related codes
-        # refactor to [x1, x2, y1, y2] format in the future
-        # cut does not induce intrinsics adjustment but crop does
-        self.parser.add_argument('--cut',
-                                 action='store_true',
-                                 help='for video dataset, whether to pre-crop '
-                                      'each frame')
-        self.parser.add_argument('--crop_left',
-                                 type=int, default=0,
-                                 help='how many pixels to crop from the left')
-        self.parser.add_argument('--crop_right',
-                                 type=float, default=0.0,
-                                 help='what proportion from the right to crop')
-        self.parser.add_argument('--shift_h',
-                                 type=float, default=0.0,
-                                 help='what proportion from the top to crop')
-        self.parser.add_argument('--crop_bottom',
-                                 type=float, default=0.0,
-                                 help='what proportion from the bottom to crop')
-        self.parser.add_argument('--target_intrinsics',
-                                 type=str,
+        self.parser.add_argument('--intrinsics',
+                                 type=str, default=None,
                                  help='a document containing 9 entries '
                                       'of the flattened target intrinsics')
-        self.parser.add_argument('--target_height',
-                                 type=int,
-                                 help=' height of the canvas for reprojection')
-        self.parser.add_argument('--target_width',
-                                 type=int,
-                                 help=' height of the canvas for reprojection')
+        self.parser.add_argument('--trim',
+                                 nargs=4,
+                                 type=float, default=[0.0, 0.0, 0.0, 0.0],
+                                 help='romove the [left, right, top, bottom] '
+                                      'part of each frame by this proportion'
+                                      '; this operation WILL NOT induce '
+                                      'intrinsics adjustment')
         self.parser.add_argument('--crop',
+                                 nargs=4,
+                                 type=float, default=[0.0, 0.0, 0.0, 0.0],
+                                 help='romove the [left, right, top, bottom] '
+                                      'part of each frame by this proportion'
+                                      '; this operation WILL induce '
+                                      'intrinsics adjustment')
+        self.parser.add_argument('--augment_strategy',
                                  type=str, choices=['none', 'single', 'multi'],
                                  default='single',
-                                 help='multi: augment data with 3 pre-defined'
+                                 help='multi: augment data with 3 pre-defined '
                                       'cropping; '
                                       'single: crop images according to '
                                       'shift_h '
                                       'none: no cropping, for random cropping '
                                       'during the training')
+        self.parser.add_argument('--augment_shift_h',
+                                 type=float, default=0.0,
+                                 help='what proportion from the top to crop '
+                                      'a frame. this only applies when augment'
+                                      '_strategy is set to single')
+        self.parser.add_argument('--video_start',
+                                 type=str,
+                                 default='00:00:00',
+                                 help='set a start time for the video '
+                                      'conversion; the format should be '
+                                      'hh:mm:ss')
+        self.parser.add_argument('--video_end',
+                                 type=str,
+                                 default='00:00:00',
+                                 help='set an end time for the video '
+                                      'conversion; the format should be '
+                                      'hh:mm:ss; if set to 00:00:00, convert '
+                                      'the video till the end')
         self.parser.add_argument('--fps',
                                  type=int,
                                  default=10,
@@ -110,7 +120,7 @@ class DataGenOptions:
                                  type=str, choices=['none', 'mono', 'color'],
                                  default='mono',
                                  help='what segmentation masks to generate '
-                                      'none: do not generate masks'
+                                      'none: do not generate masks '
                                       'mono: generate binary masks '
                                       'color: pixel values vary on masks by '
                                       'object instances')
@@ -118,6 +128,27 @@ class DataGenOptions:
                                  action='store_true',
                                  help='only use a single gpu process '
                                       'this option is mainly for debugging')
+        self.parser.add_argument('--to_yaml',
+                                 action='store_true',
+                                 help='save the options to a yaml file')
 
     def parse(self):
-        return self.parser.parse_args()
+        """
+        Parse arguments from both command line and YAML configuration.
+        The order of looking for the value for an argument is as follows:
+        command line -> YAML configuration (if provided) -> default value.
+        """
+        conf_parser = argparse.ArgumentParser(add_help=False)
+        conf_parser.add_argument('--config',
+                                 type=str, default=None,
+                                 help='the path to load YAML configuration; '
+                                      'options set in this file may be '
+                                      'overridden by command-line arguments')
+        conf_arg, remaining_args = conf_parser.parse_known_args()
+
+        if conf_arg.config:
+             with open(conf_arg.config, 'r') as f:
+               config = yaml.load(f, yaml.FullLoader)
+             self.parser.set_defaults(**config)
+     
+        return self.parser.parse_args(remaining_args)

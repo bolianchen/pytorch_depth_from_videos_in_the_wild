@@ -14,14 +14,10 @@ import torch
 
 from absl import logging
 import numpy as np
+import pandas as pd
 import imageio
 from PIL import Image
 import cv2
-
-from .masking.dynamic_object_detection import dynamic_points_analysis
-from .masking.utils.draw import draw_maskes, draw_boxes
-from .masking.detector.maskrcnn import Segmentation
-from .masking.tracktor.deepsort import DeepSort
 
 from .base_loader import (
     BaseLoader, 
@@ -49,32 +45,32 @@ class Video(BaseLoader):
                  mask='none',
                  batch_size=32,
                  threshold=0.5,
-                 detect_dynamic_objects=False,
-                 detect_dynamic_objects2=False,
                  sample_every=1,
-                 cut=False,
-                 crop_left=0,
-                 crop_right=0,
-                 crop_bottom=0,
+                 intrinsics=None,
+                 trim=[0,0,0,0],
+                 crop=[0,0,0,0],
                  del_static_frames=False,
-                 crop='multi',
-                 shift_h=0.0,
+                 augment_strategy='multi',
+                 augment_shift_h=0.0,
                  fps=10,
-                 img_ext='png',
-                 reprojection_info=None):
+                 video_start=0,
+                 video_end=0,
+                 img_ext='png'):
         super().__init__(dataset_dir, img_height, img_width, 
                          seq_length, data_format, mask, batch_size, 
-                         threshold, detect_dynamic_objects, detect_dynamic_objects2,
-                         reprojection_info=reprojection_info)
+                         threshold)
         self.sample_every = sample_every
-        self.cut = cut
-        self.crop_left=crop_left
-        self.crop_right = crop_right
-        self.crop_bottom = crop_bottom
+        self.intrinsics_path = intrinsics
+        self.intrinsics = None
+        self.trim = trim != [0,0,0,0]
+        self.trim_proportion = trim
+        self.crop_proportion = crop
         self.del_static_frames = del_static_frames
-        self.crop = crop
-        self.shift_h = shift_h
+        self.augment_strategy = augment_strategy
+        self.augment_shift_h = augment_shift_h
         self.fps = fps
+        self.video_start = pd.Timedelta(video_start).seconds * 1000 # seconds to miliseconds
+        self.video_end = pd.Timedelta(video_end).seconds * 1000
         self.img_ext = img_ext
 
         # Collect frames from videos
@@ -86,11 +82,6 @@ class Video(BaseLoader):
         self.num_frames = len(self.frames)
         self.num_train = self.num_frames
         logging.info('Total frames collected: %d', self.num_frames)
-
-        if detect_dynamic_objects2:
-            self.detector = Segmentation()
-            self.deepsort = DeepSort()
-            self.mask_pre = None
     
     def collect_videos(self):
         r"""
@@ -126,6 +117,9 @@ class Video(BaseLoader):
             logging.info(f'Converting {video} into images')
             vidcap = cv2.VideoCapture(video)
 
+            # Set current position of the video to start time
+            vidcap.set(cv2.CAP_PROP_POS_MSEC, self.video_start)
+
             # Get the approximate frame rate 
             raw_fps = vidcap.get(cv2.CAP_PROP_FPS)
             if fps:
@@ -156,12 +150,17 @@ class Video(BaseLoader):
                 # Repeat if video reading has not started
                 if vidcap.get(cv2.CAP_PROP_POS_MSEC) == 0.0:
                     success, image = vidcap.read()
+                
+                # End the conversion if it exceeds end time
+                if self.video_end and \
+                   vidcap.get(cv2.CAP_PROP_POS_MSEC) > self.video_end:
+                    break
 
                 if success:
                     if count % period == 0:
                         save_idx = count // period
-                        if self.cut:
-                            image = self._initial_crop(image)
+                        if self.trim:
+                            image = self._trim(image, self.trim_proportion)
 
                         # Remove static frames
                         if self.del_static_frames:
@@ -176,13 +175,7 @@ class Video(BaseLoader):
                                 os.path.basename(video).split('.')[0],
                                 "{:010d}.{}".format(save_idx, img_ext))
 
-                        if self.detect_dynamic_objects2:
-                            if save_idx == 0 or save_idx == 1:
-                                self.throwaway_frames.add(frame_info)
-
                         if how_is_frame == 'ok':
-                            if self.crop_left != 0:
-                                image = image[:, self.crop_left:,:]
                             cv2.imwrite(path_to_save_temp, image)
                         elif how_is_frame == 'static':
                             static_frames.append(frame_info)
@@ -282,15 +275,19 @@ class Video(BaseLoader):
                 remove_frames(frame, 'forward', 30)
                 remove_frames(static_frames[i+1], 'backward', 30)
     
-    def _initial_crop(self, img, crop_h=720, crop_w=1280):
+    def _trim(self, img, proportion):
         r"""
-        Crop out H720 x W1280 of a image
-        This Function is to crop out a portion out of the input frame. 
-        Since there is not following adjustment of intrinsics, it should only be 
+        Trim an image.
+        This Function is to trim off a portion of the input frame. 
+        Since there is no following adjustment of intrinsics, it should only be 
         applied when the frame is composed of concatenation of images from 
         different camera.
         """
-        return img[:crop_h, :crop_w, :]
+        left, right, top, bottom = proportion
+        h, w, _ = img.shape
+        left, right = int(w * left), int(w * (1 - right))
+        top, bottom = int(h * top), int(h * (1 - bottom))
+        return img[top:bottom, left:right, :]
     
     def collect_frames(self):
         r"""
@@ -305,14 +302,14 @@ class Video(BaseLoader):
             # when the image indices are not formated to same digits
             im_files = sorted(im_files, key=natural_keys)
 
-            if self.crop == 'multi':
+            if self.augment_strategy == 'multi':
                 # Adding 3 crops of the video.
                 frames.extend(['A' + video_dir + '/' + os.path.basename(f) for f in im_files])
                 frames.extend(['B' + video_dir + '/' + os.path.basename(f) for f in im_files])
                 frames.extend(['C' + video_dir + '/' + os.path.basename(f) for f in im_files])
-            elif self.crop == 'single':
+            elif self.augment_strategy == 'single':
                 frames.extend(['S' + video_dir + '/' + os.path.basename(f) for f in im_files])
-            elif self.crop == 'none':
+            elif self.augment_strategy == 'none':
                 frames.extend(['N' + video_dir + '/' + os.path.basename(f) for f in im_files])
             else:
                 raise NotImplementedError(f'crop {self.crop} not supported')
@@ -351,101 +348,7 @@ class Video(BaseLoader):
             if frame_info in self.throwaway_frames:
                 return False
 
-        return True
-
-    def get_dynamic_points(self, img, idx):
-        # Find the index of reference frame
-        target_video = self.frames[idx].split('/')[0]
-        ref_idx = idx - 1
-        if ref_idx < 0 or self.frames[ref_idx].split('/')[0] != target_video:
-            pre_idx = idx + 1
-        else:
-            pre_idx = idx - 1
-        
-        # Load the reference frame
-        frame_id = self.frames[pre_idx]
-        img_pre, _ = self.load_image_raw({'frame_id': frame_id})
-
-        # Convert images to gray scale and detect dynamic points
-        img_gray_pre = cv2.cvtColor(img_pre, cv2.COLOR_RGB2GRAY)
-        img_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-        dynamic_points, outlier_ratio = self.dynamic_object_detector(img_gray_pre, img_gray)
-
-        return dynamic_points, outlier_ratio
-
-    def get_possibility_of_static_object(self, img_pre, img, object_mask_pre, object_mask):
-        h, w, _ = img.shape
-        mask_pre = np.zeros((h, w))
-
-        for i in range(len(object_mask_pre)):
-            mask_pre[object_mask_pre[i] == 1] = 1
-
-        possibility_of_static, prepoint_, currpoint_ = dynamic_points_analysis(img_pre, img, mask_pre, object_mask_pre)
-
-        possibility_of_static_map = np.zeros((h, w))
-        for i in range(len(currpoint_)):
-            x, y = currpoint_[i].ravel()
-            if 0 <= x < w and 0 <= y < h:
-                possibility_of_static_map[y][x] = possibility_of_static[i]
-
-        possibility_of_static_object_list = []
-        for i in range(len(object_mask)):
-            temp = possibility_of_static_map[(object_mask[i] == 1) & (possibility_of_static_map > 0)]
-            if len(temp) < 2:
-                possibility_of_static_object_list.append(-1)
-            else:
-                possibility_of_static_object = np.mean(temp)
-                possibility_of_static_object_list.append(possibility_of_static_object)
-
-        return possibility_of_static_object_list, currpoint_[possibility_of_static < 0.1], prepoint_, currpoint_
-
-    def get_dynamic_object_map(self, img, idx):
-        # Find the index of reference frame
-        target_video = self.frames[idx].split('/')[0]
-        ref_idx = idx - 1
-        if ref_idx < 0 or self.frames[ref_idx].split('/')[0] != target_video:
-            pre_idx = idx + 1
-        else:
-            pre_idx = idx - 1
-        
-        # Load the reference frame
-        frame_id = self.frames[pre_idx]
-        img_pre, _ = self.load_image_raw({'frame_id': frame_id})
-
-        # do detection
-        mask, bbox_xywh, cls_conf, _ = self.detector.get_prediction(img)
-
-        if self.mask_pre is not None:
-            possibility_of_static_objects, dynamic_point, pre_point, curr_point = self.get_possibility_of_static_object(img_pre, img, self.mask_pre, mask)
-        else:
-            possibility_of_static_objects = [1 for _ in range(len(mask))]
-
-        if len(bbox_xywh) > 0:
-            bbox_xywh[:, 3:] *= 1.1
-            outputs, mask_, possibility_of_static = self.deepsort.update(bbox_xywh, cls_conf, img, mask, possibility_of_static_objects)
-            dynamic_map = np.zeros_like(img[:, :, 0], dtype=np.uint8)
-            for i in range(len(possibility_of_static)):
-                if possibility_of_static[i] < 0.3:
-                    dynamic_map[mask_[i] == 1] = 255
-
-            self.mask_pre = mask_
-
-            # draw boxes for visualization
-            """if len(outputs) > 0:
-                modified_img = img.copy()
-                modified_img = cv2.cvtColor(modified_img, cv2.COLOR_RGB2BGR)
-                identities = outputs[:, -1]
-                bbox_xyxy = outputs[:, :4]
-                modified_img = draw_maskes(modified_img, mask_, possibility_of_static, identities, dynamic_point, pre_point, curr_point)
-                modified_img = draw_boxes(modified_img, bbox_xyxy, possibility_of_static, identities)
-
-                cv2.imshow("test", modified_img)
-                cv2.waitKey(1)"""
-
-            return dynamic_map
-        else:
-            return np.zeros_like(img[:, :, 0], dtype=np.uint8)
-        
+        return True        
     
     def load_image_sequence(self, target_index):
         r"""
@@ -461,13 +364,11 @@ class Video(BaseLoader):
             start_index = end_index = target_index
 
         image_seq = []
-        dynamic_map_seq = []
-        target_outlier_ratio = 0.0
         for idx in range(start_index, end_index + 1, self.sample_every):
             frame_id = self.frames[idx]
-            img, crop_top = self.load_image_raw({'frame_id': frame_id})
+            img, crop_top, crop_left = self.load_image_raw({'frame_id': frame_id})
 
-            if self.crop == 'none':
+            if self.augment_strategy == 'none':
                 size = (self.img_width, int(img.shape[0] * self.img_width / img.shape[1]))
             else:
                 size = (self.img_width, self.img_height)
@@ -475,39 +376,11 @@ class Video(BaseLoader):
                 zoom_y = size[1] / img.shape[0] # target_h / original_h
                 zoom_x = size[0] / img.shape[1] # target_w / original_w
 
-            if self.detect_dynamic_objects:
-                try: 
-                    dynamic_points, outlier_ratio = self.get_dynamic_points(img, idx)
-                    # Resize the coordinates of dynamic points
-                    dynamic_points[:, 0] *= size[0] / img.shape[1]
-                    dynamic_points[:, 1] *= size[1] / img.shape[0]
-                except:
-                    dynamic_points, outlier_ratio = None, 0
-                if idx == target_index:
-                    target_outlier_ratio = outlier_ratio
-
-            if self.detect_dynamic_objects2:
-                dynamic_map = self.get_dynamic_object_map(img, idx)
-
-                # Dilate the map for better recall rate
-                dynamic_map = cv2.dilate(dynamic_map, np.ones((3, 3), np.uint8), iterations=1)
-                dynamic_map = np.array(Image.fromarray(dynamic_map).resize(size))
-                dynamic_map_seq.append(dynamic_map)
-
             # Notice the default mode for RGB images rescaling is BICUBIC
             img = np.array(Image.fromarray(img).resize(size))
             image_seq.append(img)
 
-            if self.detect_dynamic_objects:
-                dynamic_map = np.zeros_like(img[:, :, 0], dtype=np.uint8)
-                if dynamic_points is not None:
-                    dynamic_points = dynamic_points.astype('int')                
-                    dynamic_map[dynamic_points[:, 1], dynamic_points[:, 0]] = 255
-                # Dilate the map for better recall rate
-                dynamic_map = cv2.dilate(dynamic_map, np.ones((3, 3), np.uint8), iterations=1)
-                dynamic_map_seq.append(dynamic_map)
-
-        return image_seq, zoom_x, zoom_y, crop_top, dynamic_map_seq, target_outlier_ratio
+        return image_seq, zoom_x, zoom_y, crop_top, crop_left
 
     def load_example(self, target_index):
         r"""
@@ -515,19 +388,19 @@ class Video(BaseLoader):
         Every loader should implement its own method.
         """
         example = {}
-        image_seq, zoom_x, zoom_y, crop_top, dynamic_map_seq, outlier_ratio = self.load_image_sequence(target_index)
+        image_seq, zoom_x, zoom_y, crop_top, crop_left = self.load_image_sequence(target_index)
 
         target_video, target_filename = self.frames[target_index].split('/')
-        if self.crop == 'multi':
+        if self.augment_strategy == 'multi':
             # Put A, B, C at the end for better shuffling.
             target_video = target_video[1:] + target_video[0]
-        elif self.crop == 'single' or self.crop == 'none':
+        elif self.augment_strategy == 'single' or self.augment_strategy == 'none':
             target_video = target_video[1:]
         else:
             raise NotImplementedError(f'crop {self.crop} not supported')
 
         # First adjust intrinsics due to cropping
-        intrinsics = self.load_intrinsics({'crop_top': crop_top})
+        intrinsics = self.load_intrinsics({'crop_top': crop_top, 'crop_left': crop_left})
         # Then adjust intrinsics due to rescaling
         intrinsics = self.scale_intrinsics(intrinsics, zoom_x, zoom_y)
 
@@ -535,9 +408,6 @@ class Video(BaseLoader):
         example['image_seq'] = image_seq
         example['folder_name'] = target_video
         example['file_name'] = target_filename.split('.')[0]
-        if self.detect_dynamic_objects or self.detect_dynamic_objects2:
-            example['dynamic_map_seq'] = dynamic_map_seq
-        example['outlier_ratio'] = outlier_ratio
         return example
 
     def load_image_raw(self, infos):
@@ -551,10 +421,16 @@ class Video(BaseLoader):
         img = imageio.imread(img_file)
 
         # Image shape (H, W, C)
-        # Assume H would be crop
-        crop_right = int(img.shape[1] * (1 - self.crop_right))
-        allowed_height = int(crop_right * self.img_height / self.img_width)
+        crop_left, crop_right, crop_top, crop_bottom = self.crop_proportion
+        crop_left = int(img.shape[1] * crop_left)
+        crop_right = int(img.shape[1] * (1 - crop_right))
+        crop_top = int(img.shape[0] * crop_top)
+        crop_bottom = int(img.shape[0] * (1 - crop_bottom))
 
+        # Crop the image
+        img = img[crop_top:crop_bottom, crop_left:crop_right, :]
+
+        allowed_height = int(img.shape[1] * self.img_height / self.img_width)
         # Starting height for the middle crop.
         mid_crop_top = int(img.shape[0] / 2 - allowed_height / 2)
         # How much to go up or down to get the other two crops.
@@ -569,34 +445,47 @@ class Video(BaseLoader):
         elif crop_type == 'C':
             crop_top = mid_crop_top + height_var
         elif crop_type == 'S':
-            crop_top = int(self.shift_h *  img.shape[0])
+            crop_top = int(self.augment_shift_h * img.shape[0])
         elif crop_type == 'N':
             crop_top = 0
         else:
             raise ValueError('Unknown crop_type: %s' % crop_type)
 
-        crop_bottom =  img.shape[0] if crop_type == 'N' else crop_top + allowed_height + 1
         if crop_type == 'N':
-            crop_bottom = int(img.shape[0] * (1 - self.crop_bottom))
+            crop_bottom = img.shape[0]
         else:
             crop_bottom = crop_top + allowed_height + 1
 
-        return img[crop_top:crop_bottom, :crop_right, :], crop_top
+        return img[crop_top:crop_bottom, :, :], crop_top, crop_left
 
     def load_intrinsics(self, infos):
         r"""
         Load the intrinsic matrix given its id.
         Every loader should implement its own method.
         """
-        crop_top = infos['crop_top']
-        crop_left = self.crop_left
+        # Load the intrinsic matrix
+        if self.intrinsics is None:
+            if self.intrinsics_path:
+                self.intrinsics = np.loadtxt(self.intrinsics_path).reshape(3, 3)
+            else:
+                # Default intrinsics
+                # https://www.wired.com/2013/05/calculating-the-angular-view-of-an-iphone/
+                # https://codeyarns.com/2015/09/08/how-to-compute-intrinsic-camera-matrix-for-a-camera/
+                # https://stackoverflow.com/questions/39992968/how-to-calculate-field-of-view-of-the-camera-from-camera-intrinsic-matrix
+                # # iPhone: These numbers are for images with resolution 720 x 1280.
+                # Assuming FOV = 50.9 => fx = (1280 // 2) / math.tan(fov / 2) = 1344.8
+                self.intrinsics = np.array(
+                    [[ 1344.8,      0.0,  640.0],
+                    [     0.0,   1344.8,  360.0],
+                    [     0.0,      0.0,    1.0]]
+                )
 
-        # the values were casually typed
-        intrinsics = np.array(
-            [[ 1280.0,      0.0,  640.0 - crop_left],
-             [    0.0,   1280.0,  640.0 - crop_top ],
-             [    0.0,      0.0,                  1.0 ]]
-        )
+        crop_top = infos['crop_top']
+        crop_left = infos['crop_left']
+        intrinsics = self.intrinsics[:]
+        intrinsics[0, 2] -= crop_left
+        intrinsics[1, 2] -= crop_top
+
         return intrinsics
 
     def delete_temp_images(self):

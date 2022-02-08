@@ -42,16 +42,12 @@ class KittiRaw(BaseLoader):
                  data_format='mono2',
                  mask='none',
                  batch_size=32,
-                 threshold=0.5,
-                 detect_dynamic_objects=False,
-                 shift_h=0.0,
-                 reprojection_info=None):
+                 threshold=0.5):
         super().__init__(dataset_dir, img_height, img_width,
                          seq_length, data_format, mask, batch_size, 
-                         threshold, detect_dynamic_objects,
-                         reprojection_info=reprojection_info)
-        static_frames_file = 'data_prep/kitti/static_frames.txt'
-        test_scene_file = 'data_prep/kitti/test_scenes_' + split + '.txt'
+                         threshold)
+        static_frames_file = 'datasets/data_prep/kitti/static_frames.txt'
+        test_scene_file = 'datasets/data_prep/kitti/test_scenes_' + split + '.txt'
         with open(get_resource_path(test_scene_file), 'r') as f:
             test_scenes = f.readlines()
         self.test_scenes = [t[:-1] for t in test_scenes]
@@ -62,7 +58,6 @@ class KittiRaw(BaseLoader):
         ]
         self.collect_static_frames(static_frames_file)
         self.collect_train_frames()
-        self.shift_h=shift_h
 
     def collect_static_frames(self, static_frames_file):
         with open(get_resource_path(static_frames_file), 'r') as f:
@@ -137,32 +132,6 @@ class KittiRaw(BaseLoader):
             return True
         return False
 
-    def get_dynamic_points(self, img, idx):
-        # Find the index of reference frame
-        target_drive, cam_id, _ = self.train_frames[idx].split(' ')
-        ref_idx = idx - 1
-        ref_drive, ref_cam_id, _ = self.train_frames[ref_idx].split(' ')
-        if ref_idx < 0 or ref_drive != target_drive or ref_cam_id != cam_id:
-            pre_idx = idx + 1
-        else:
-            pre_idx = idx - 1
-        
-        # Load the reference frame
-        pre_drive, pre_cam_id, pre_frame_id = self.train_frames[pre_idx].split(' ')
-        infos = {
-            'drive': pre_drive,
-            'cam_id': pre_cam_id,
-            'frame_id': pre_frame_id
-        }
-        img_pre, _ = self.load_image_raw(infos)
-
-        # Convert images to gray scale and detect dynamic points
-        img_gray_pre = cv2.cvtColor(img_pre, cv2.COLOR_RGB2GRAY)
-        img_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-        dynamic_points, outlier_ratio = self.dynamic_object_detector(img_gray_pre, img_gray)
-
-        return dynamic_points, outlier_ratio
-
     def load_image_sequence(self, target_index):
         r"""
         Return a sequence with requested target frame.
@@ -187,17 +156,6 @@ class KittiRaw(BaseLoader):
             }
             img, intrinsics = self.load_image_raw(infos)
 
-            if self.detect_dynamic_objects:
-                try:
-                    dynamic_points, outlier_ratio = self.get_dynamic_points(img, index)
-                    # Resize the coordinates of dynamic points
-                    dynamic_points[:, 0] *= self.img_width / img.shape[1]
-                    dynamic_points[:, 1] *= self.img_height / img.shape[0]
-                except:
-                    dynamic_points, outlier_ratio = None, 0
-                if index == target_index:
-                    target_outlier_ratio = outlier_ratio
-
             if index == target_index:
                 zoom_y = self.img_height / img.shape[0]
                 zoom_x = self.img_width / img.shape[1]
@@ -206,17 +164,7 @@ class KittiRaw(BaseLoader):
             img = np.array(Image.fromarray(img).resize((self.img_width, self.img_height)))
             image_seq.append(img)
 
-            # after resizing
-            if self.detect_dynamic_objects:
-                dynamic_map = np.zeros_like(img[:, :, 0], dtype=np.uint8)
-                if dynamic_points is not None:
-                    dynamic_points = dynamic_points.astype('int')                
-                    dynamic_map[dynamic_points[:, 1], dynamic_points[:, 0]] = 255
-                # Dilate the map for better recall rate
-                dynamic_map = cv2.dilate(dynamic_map, np.ones((3, 3), np.uint8), iterations=1)
-                dynamic_map_seq.append(dynamic_map)
-
-        return image_seq, zoom_x, zoom_y, intrinsics, dynamic_map_seq, target_outlier_ratio
+        return image_seq, zoom_x, zoom_y, intrinsics
 
     def load_pose_sequence(self, target_index):
         r"""
@@ -250,7 +198,7 @@ class KittiRaw(BaseLoader):
             'cam_id': target_cam_id
         }
 
-        image_seq, zoom_x, zoom_y, intrinsics, dynamic_map_seq, outlier_ratio = (
+        image_seq, zoom_x, zoom_y, intrinsics = (
                 self.load_image_sequence(target_index)
                 )
         
@@ -262,9 +210,6 @@ class KittiRaw(BaseLoader):
         if self.load_pose:
             pose_seq = self.load_pose_sequence(target_index)
             example['pose_seq'] = pose_seq
-        if self.detect_dynamic_objects:
-            example['dynamic_map_seq'] = dynamic_map_seq
-        example['outlier_ratio'] = outlier_ratio
         return example
 
     def load_pose_raw(self, drive, frame_id):
@@ -295,26 +240,7 @@ class KittiRaw(BaseLoader):
             frame_id + '.png'
             )
         img = imageio.imread(img_file)
-        source_intrinsics = self.load_intrinsics(infos)
-        # do image reprojection
-        if self.target_intrinsics is not None:
-            img, updated_target_intrinsics, crop_left = self.reproject_img(
-                    img, source_intrinsics,
-                    self.target_intrinsics,
-                    self.target_height, self.target_width)
-            allowed_height = int(img.shape[1] * self.img_height/self.img_width)
-            crop_top = int(self.shift_h * img.shape[0])
-            if (crop_top+allowed_height) > img.shape[0]:
-                # TODO: revise crop_top
-                img = img[-allowed_height:]
-            else:
-                img = img[crop_top:crop_top+allowed_height]
-            # adjust the v principal point
-            intrinsics = self.scale_intrinsics(updated_target_intrinsics, 1.,1.,
-                                               crop_top=crop_top,
-                                               crop_left=crop_left)
-        else:
-            intrinsics=source_intrinsics
+        intrinsics = self.load_intrinsics(infos)
 
         return img, intrinsics
 

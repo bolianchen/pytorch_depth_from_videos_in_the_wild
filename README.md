@@ -10,7 +10,7 @@ This project is a Pytorch re-implementation of the following Google ICCV 2019 pa
 We provide `gen_data.py` to generate training datasets. There are two types of datasets available:
 
 #### KITTI
-Please visit the [official website]((http://www.cvlibs.net/datasets/kitti/raw_data.php)) to download the entire raw KITTI dataset.
+Please visit the [official website](http://www.cvlibs.net/datasets/kitti/raw_data.php) to download the entire raw KITTI dataset.
 To unzip the data, run:
 ```
 cd kitti_data

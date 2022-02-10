@@ -40,7 +40,7 @@ python gen_data.py \
 --dataset_name video \
 --dataset_dir /path/to/your/video_folder \
 --save_dir /path/to/save/the/generated_data \
---intrinsics /path/to/your/camera_intrinsics_file
+--intrinsics /path/to/your/camera_intrinsics_file \
 --mask color
 ```
 

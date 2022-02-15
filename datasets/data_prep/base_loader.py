@@ -39,10 +39,7 @@ class BaseLoader(object):
                  data_format='mono2',
                  mask='none',
                  batch_size=32,
-                 threshold=0.5,
-                 detect_dynamic_objects=False,
-                 detect_dynamic_objects2=False,
-                 reprojection_info=None):
+                 threshold=0.5):
         self.dataset_dir = dataset_dir
         self.img_height = img_height
         self.img_width = img_width
@@ -52,19 +49,9 @@ class BaseLoader(object):
         self.mask = mask
         self.batch_size = batch_size
         self.threshold = threshold
-        self.detect_dynamic_objects = detect_dynamic_objects
-        self.detect_dynamic_objects2 = detect_dynamic_objects2
-        if reprojection_info:
-            self.target_intrinsics, self.target_height, self.target_width = (
-                    reprojection_info
-                    )
-        else:
-            self.target_intrinsics=None
 
         if self.gen_mask:
             self._initialize_mrcnn_model()
-        if self.detect_dynamic_objects:
-            self.dynamic_object_detector = DynamicObjectDetector()
 
     def _initialize_mrcnn_model(self):
         model = maskrcnn_resnet50_fpn(pretrained=True)
@@ -80,47 +67,6 @@ class BaseLoader(object):
         with torch.no_grad():
             results = self.model(images)
         return results
-
-    def reproject_img(self, img, source_intrinsics, target_intrinsics,
-                      target_h, target_w):
-        """Reproject images according to focal lengths
-        
-        Do center cropping to obtain the final shape (target_h, target_w)
-        """
-        source_intrinsics = np.copy(source_intrinsics)
-        target_intrinsics = np.copy(target_intrinsics)
-    
-        ts_fx_ratio = target_intrinsics[0,0]/source_intrinsics[0,0]
-        ts_fy_ratio = target_intrinsics[1,1]/source_intrinsics[1,1]
-
-        raw_height, raw_width = img.shape[:2]
-        intermediate_h = round(raw_height*ts_fy_ratio)
-        intermediate_w = round(raw_width*ts_fx_ratio)
-
-        # adjust principal points
-        target_intrinsics[0,2] = source_intrinsics[0,2]*ts_fx_ratio
-        target_intrinsics[1,2] = source_intrinsics[1,2]*ts_fy_ratio
-
-        M = np.matmul(target_intrinsics,
-                      np.linalg.inv(source_intrinsics))
-        dst = cv2.warpPerspective(img, M, (intermediate_w, intermediate_h))
-        
-        # Do center cropping
-        new_img = np.zeros((target_h, target_w, 3), dtype='uint8')
-        new_h, new_w = dst.shape[:2]
-        
-        assert intermediate_w >= target_w
-        startx = new_w//2 - (target_w//2)
-        endx = startx + target_w
-
-        if intermediate_h >= target_h:
-            starty = new_h//2 - (target_h//2)
-            endy = starty + target_h
-        else:
-            starty = 0
-            endy = intermediate_h
-
-        return dst[starty:endy,startx:endx], target_intrinsics, startx
 
     def generate_mask(self, mrcnn_result, dynamic_map=None):
         r"""
@@ -145,12 +91,6 @@ class BaseLoader(object):
         masks[labels == 5] *= 0 # airplane
         masks[labels == 7] *= 0 # train
         masks[labels > 8] *= 0
-
-        # Throw away the masks that are static objects
-        if dynamic_map is not None:
-            dynamic_map = np.expand_dims(dynamic_map, axis=0)
-            static_idx = np.sum(dynamic_map * masks, axis=(1, 2)) == 0
-            masks[static_idx] *= 0
 
         mask_img = np.ones_like(masks, dtype=np.uint8) 
         if self.mask == 'mono':

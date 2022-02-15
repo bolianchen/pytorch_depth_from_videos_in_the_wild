@@ -9,6 +9,7 @@ from __future__ import print_function
 import itertools
 import multiprocessing
 import os
+import yaml
 from absl import app
 from absl import flags
 from absl import logging
@@ -34,19 +35,11 @@ def _generate_data():
     """
     os.makedirs(FLAGS.save_dir, exist_ok=True)
 
-    # prepare target_intrinsics for image reprojection
-    if FLAGS.target_intrinsics:
-        with open(FLAGS.target_intrinsics, 'r') as f:
-            # 1 x 9 array
-            target_intrinsics = np.array([
-                [float(e) for e in l.split(',')] for l in f.readlines()
-                ])
-            target_intrinsics = target_intrinsics.reshape(3,3)
-        reprojection_info = (target_intrinsics, FLAGS.target_height,
-                             FLAGS.target_width)
-    else:
-        reprojection_info = None
-
+    if FLAGS.to_yaml:
+        # Save the options to a YAML configuration in save_dir
+        yaml_filename = os.path.join(FLAGS.save_dir, 'config.yaml')
+        with open(yaml_filename, 'w') as f:
+            yaml.dump(vars(FLAGS), f, default_flow_style=False)
 
     global dataloader  # pylint: disable=global-variable-undefined
     if FLAGS.dataset_name == 'video':
@@ -59,16 +52,16 @@ def _generate_data():
             mask=FLAGS.mask,
             batch_size=FLAGS.batch_size,
             threshold=FLAGS.threshold,
-            cut=FLAGS.cut,
-            crop_left=FLAGS.crop_left,
-            crop_right=FLAGS.crop_right,
-            crop_bottom=FLAGS.crop_bottom,
-            del_static_frames=FLAGS.del_static_frames,
+            intrinsics=FLAGS.intrinsics,
+            trim=FLAGS.trim,
             crop=FLAGS.crop,
-            shift_h=FLAGS.shift_h,
+            del_static_frames=FLAGS.del_static_frames,
+            augment_strategy=FLAGS.augment_strategy,
+            augment_shift_h=FLAGS.augment_shift_h,
             fps=FLAGS.fps,
-            img_ext=FLAGS.save_img_ext,
-            reprojection_info=reprojection_info
+            video_start=FLAGS.video_start,
+            video_end=FLAGS.video_end,
+            img_ext=FLAGS.save_img_ext
         )
     elif FLAGS.dataset_name == 'kitti_raw_eigen':
         dataloader = KittiRaw(
@@ -80,9 +73,7 @@ def _generate_data():
             data_format=FLAGS.data_format,
             mask=FLAGS.mask, 
             batch_size=FLAGS.batch_size,
-            threshold=FLAGS.threshold,
-            shift_h=FLAGS.shift_h,
-            reprojection_info=reprojection_info
+            threshold=FLAGS.threshold
       )
     elif FLAGS.dataset_name == 'kitti_raw_stereo':
         dataloader = KittiRaw(
@@ -94,9 +85,7 @@ def _generate_data():
             data_format=FLAGS.data_format,
             mask=FLAGS.mask, 
             batch_size=FLAGS.batch_size,
-            threshold=FLAGS.threshold,
-            shift_h=FLAGS.shift_h,
-            reprojection_info=reprojection_info
+            threshold=FLAGS.threshold
       )
     else:
         raise ValueError('Unknown dataset')
@@ -170,11 +159,6 @@ def _generate_data():
 
     if FLAGS.dataset_name=='video' and FLAGS.delete_temp:
         dataloader.delete_temp_images()
-
-    for path, dirs, files in os.walk(FLAGS.save_dir):
-        for file in files:
-            if file.endswith('npy'):
-                os.remove(os.path.join(path, file))
   
 def _gen_example(i, all_examples=None):
     r"""

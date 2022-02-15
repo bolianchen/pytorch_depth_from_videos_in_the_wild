@@ -6,37 +6,24 @@ from datetime import datetime
 
 project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-class EvalBaseOptions:
+class InferOptions:
     """Options to initialize models and image preprocessor
     """
     def __init__(self):
         self.parser = argparse.ArgumentParser()
 
-        self.parser.add_argument('--method', type=str, default='',
-                                 choices = ['', 'monodepth2', 'manydepth',
-                                            'wild', 'summer2021'],
-                                 help = 'this argument is only needed when'
-                                        ' opt.json is not available. '
-                                        ' For instance, when the officially'
-                                        ' released models are applied')
+        # DEPTH ESTIMATION
+        self.parser.add_argument("--input_path", type=str, required=True,
+                                help="path of a video or a folder of image")
+        self.parser.add_argument("--output_dir", type=str,
+                                default="./", help="dir to save output image")
+
         # MODEL INITIALIZATION
-        self.parser.add_argument('--custom_model_path', type=str,
+        self.parser.add_argument('--model_path', type=str,
                                 help='relative or absolute path to the model directory, '
                                     ' either this or model_name should be given')
-        self.parser.add_argument('--model_name', type=str,
-                                choices=[
-                                    "mono_640x192",
-                                    "stereo_640x192",
-                                    "mono+stereo_640x192",
-                                    "mono_no_pt_640x192",
-                                    "stereo_no_pt_640x192",
-                                    "mono+stereo_no_pt_640x192",
-                                    "mono_1024x320",
-                                    "stereo_1024x320",
-                                    "mono+stereo_1024x320",
-                                    "mono_model"],
-                                help='name of a pretrained model to use, '
-                                    'either this or custom_model_path should be given')
+
+        # TODO: Refactor as gen_data.py
         #  IMAGE PROCESSING for EVALUATIONS
         self.parser.add_argument("--cut", type=str, default='',
                                  choices=['', 'upleft', 'upright', 'downleft',
@@ -46,7 +33,6 @@ class EvalBaseOptions:
                                  help="height to cut")
         self.parser.add_argument("--cut_w", type=int, default=1280,
                                  help="width to cut")
-
         self.parser.add_argument("--shift_h",
                                  type=float,
                                  default=0.0,

@@ -15,6 +15,7 @@ class BaseOptions:
         # METHODOLOGY
         self.parser.add_argument('--method',
                                  type=str,
+                                 default= 'wild',
                                  help='depth estimation methodology to use '
                                       'actually, this argument is parsed and '
                                       'used in train.py. The one here is to '

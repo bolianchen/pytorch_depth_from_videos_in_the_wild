@@ -67,3 +67,8 @@ class MixedMonoDataset(data.Dataset):
     def __getitem__(self, index):
         dataset_idx, sub_frame_idx = which_dataset(index, self.sample_nums)
         return self.datasets[dataset_idx].__getitem__(sub_frame_idx)
+
+    def get_repr_intrinsics(self):
+        """Return the effective intrinsics from the first dataset"""
+        return self.datasets[0].get_repr_intrinsics()
+        

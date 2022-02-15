@@ -187,8 +187,11 @@ class WildOptions(BaseOptions):
         self.parser.add_argument('--pose_other_weight_decay',
                                  type=float,
                                  default = 0,
-                                 help='conv layers in background_motion_conv '
-                                      ', rot_scale and trans_scale')
+                                 help='conv layers in background_motion_conv')
+        self.parser.add_argument('--scaler_weight_decay',
+                                 type=float,
+                                 default = 0,
+                                 help='')
         self.parser.add_argument('--motion_weight_decay',
                                  type=float,
                                  default = 0,

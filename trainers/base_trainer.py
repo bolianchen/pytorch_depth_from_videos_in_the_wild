@@ -202,12 +202,10 @@ class BaseTrainer:
                         broadcast_buffers=True,
                         find_unused_parameters=True)
 
-    def _init_ssim(self, weighted=False):
+    def _init_ssim(self):
         """Define SSIM Layer
-        sharable by all the methods
         """
-        # TODO: add an argument to control which ssim is initialized
-        if weighted:
+        if self.opt.weighted_ssim:
             self.ssim = WeightedSSIM(c1=float('inf'), c2=9e-6)
             self.ssim.to(self.device)
         else:

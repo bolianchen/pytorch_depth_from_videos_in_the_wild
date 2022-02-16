@@ -21,13 +21,8 @@ from lib.torch_layers import *
 class WildTrainer(BaseTrainer):
     def __init__(self, options):
         super(WildTrainer, self).__init__(options)
-        
-        #TODO organize it to an _init_aux method
-        # and move the initialization to the base_trainer.py
-        self._init_dilation(self.opt.foreground_dilation)
 
-        if not self.opt.no_ssim:
-            self._init_ssim(weighted=self.opt.weighted_ssim)
+        self._init_dilation(self.opt.foreground_dilation)
 
     def _init_depth_net(self):
         """Build the depth network"""
@@ -152,6 +147,33 @@ class WildTrainer(BaseTrainer):
 
         return outputs, losses
 
+    def _update_depths(self, inputs, outputs):
+        """Returns depths for all frames"""
+        for frame_id in self.opt.frame_ids:
+            features = self.models['encoder'](
+                    inputs['color_aug', frame_id, 0]
+                    )
+            depths = self.models['depth'](features)
+
+            for scale in self.opt.scales:
+                outputs[('depth', frame_id, scale)] = depths[('depth', scale)]
+
+    def _update_poses(self, inputs, outputs):
+        """Returns all the relative poses"""
+
+        frame_ids = sorted(self.opt.frame_ids) # [-1, 0, 1]
+        num_pairs = len(self.opt.frame_ids) - 1
+
+        # from source to target 
+        for source in range(num_pairs):
+            target = source + 1
+
+            sf = frame_ids[source] # source frame
+            tf = frame_ids[target] # target frame
+            
+            self._predict_pose(inputs, outputs, sf, tf)
+            self._predict_pose(inputs, outputs, tf, sf)
+
     def compute_losses(self, inputs, outputs):
         """Compute the final weighted loss"""
         losses = {}
@@ -193,32 +215,6 @@ class WildTrainer(BaseTrainer):
 
         return losses
 
-    def _update_depths(self, inputs, outputs):
-        """Returns depths for all frames"""
-        for frame_id in self.opt.frame_ids:
-            features = self.models['encoder'](
-                    inputs['color_aug', frame_id, 0]
-                    )
-            depths = self.models['depth'](features)
-
-            for scale in self.opt.scales:
-                outputs[('depth', frame_id, scale)] = depths[('depth', scale)]
-
-    def _update_poses(self, inputs, outputs):
-        """Returns all the relative poses"""
-
-        frame_ids = sorted(self.opt.frame_ids) # [-1, 0, 1]
-        num_pairs = len(self.opt.frame_ids) - 1
-
-        # from source to target 
-        for source in range(num_pairs):
-            target = source + 1
-
-            sf = frame_ids[source] # source frame
-            tf = frame_ids[target] # target frame
-            
-            self._predict_pose(inputs, outputs, sf, tf)
-            self._predict_pose(inputs, outputs, tf, sf)
 
     def _predict_pose(self, inputs, outputs, source_frame_id, target_frame_id):
         """Returns pose prediction for a single pair of frames

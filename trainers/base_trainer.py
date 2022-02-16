@@ -60,6 +60,8 @@ class BaseTrainer:
 
         self._init_backproject_depth() 
 
+        if not self.opt.no_ssim: 
+            self._init_ssim()
 
         if self.opt.rank == 0:
             print("There are {:d} training items and {:d} validation items\n".format(

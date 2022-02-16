@@ -190,13 +190,6 @@ class BaseOptions:
                                  type=int,
                                  help='number of dataloader workers',
                                  default=12)
-        self.parser.add_argument('--warmup_epochs',
-                                 type=int,
-                                 default=0,
-                                 help='how many epochs used to warmup '
-                                      'set 0 to disable it. The total '
-                                      'training epochs would be num_epochs + '
-                                      'warmup_epochs')
         self.parser.add_argument('--learning_rate',
                                  type=float,
                                  help='learning rate',
@@ -205,6 +198,11 @@ class BaseOptions:
                                  type=int,
                                  help='number of epochs',
                                  default=20)
+        self.parser.add_argument('--warmup_epochs',
+                                 type=int,
+                                 default=0,
+                                 help='if nonzero, a warmup mechanism would'
+                                      'enabled')
         self.parser.add_argument('--scheduler_step_size',
                                  type=int,
                                  help='step size of the scheduler',

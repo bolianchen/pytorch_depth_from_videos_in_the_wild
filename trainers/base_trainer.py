@@ -158,15 +158,7 @@ class BaseTrainer:
             self.model_optimizer,
             self.opt.scheduler_step_size, self.opt.scheduler_gamma)
 
-        if self.opt.warmup_epochs > 0:
-            self.opt.num_epochs += self.opt.warmup_epochs
-            self.warmup_steps = self.opt.warmup_epochs
-            self.model_lr_scheduler = GradualWarmupScheduler(
-                    self.model_optimizer, multiplier=1, 
-                    total_iters = self.warmup_steps,
-                    after_scheduler = scheduler)
-        else:
-            self.model_lr_scheduler = scheduler 
+        self.model_lr_scheduler = scheduler 
 
     def _init_models(self):
         """Initialize model parameters

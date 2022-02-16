@@ -68,7 +68,7 @@ class WildOptions(BaseOptions):
         self.parser.add_argument('--init_encoder_params',
                                  nargs='+',
                                  type=float,
-                                 default=[0.5],
+                                 default=[1.0],
                                  help='')
         self.parser.add_argument('--init_depth_mode',
                                  type=str,
@@ -83,7 +83,7 @@ class WildOptions(BaseOptions):
         self.parser.add_argument('--init_depth_params',
                                  nargs='+',
                                  type=float,
-                                 default=[0.5],
+                                 default=[1.0],
                                  help='')
         self.parser.add_argument('--init_pose_mode',
                                  type=str,
@@ -98,7 +98,7 @@ class WildOptions(BaseOptions):
         self.parser.add_argument('--init_pose_params',
                                  nargs='+',
                                  type=float,
-                                 default=[0.5],
+                                 default=[1.0],
                                  help='')
         self.parser.add_argument('--init_motion_mode',
                                  type=str,
@@ -113,7 +113,7 @@ class WildOptions(BaseOptions):
         self.parser.add_argument('--init_motion_params',
                                  nargs='+',
                                  type=float,
-                                 default=[0.5],
+                                 default=[1.0],
                                  help='')
         self.parser.add_argument('--init_intrinsics_head_mode',
                                  type=str,
@@ -128,7 +128,7 @@ class WildOptions(BaseOptions):
         self.parser.add_argument('--init_intrinsics_head_params',
                                  nargs='+',
                                  type=float,
-                                 default=[0.5],
+                                 default=[1.0],
                                  help='')
 
         # LOSS COMPUTATIONS

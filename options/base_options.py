@@ -126,7 +126,7 @@ class BaseOptions:
         self.parser.add_argument('--scales',
                                  nargs='+',
                                  type=int,
-                                 default=[0, 1, 2, 3],
+                                 default=[0],
                                  help='scales used in the loss, this affects '
                                       'both dataloader and some methods to '
                                       'compute losses')

@@ -10,10 +10,9 @@ import matplotlib.cm as cm
 from lib.img_processing import image_resize
 
 class BaseEvaluator:
-    def __init__(self, opt, model_intrinsics):
+    def __init__(self, opt):
         self.opt = opt
         self._update_model_info()
-        self.model_intrinsics = model_intrinsics
         self.models = {}
         self.num_scales = len(self.opt.scales)
         self.num_input_frames = len(self.opt.frame_ids)
@@ -29,14 +28,10 @@ class BaseEvaluator:
         self._init_depth_net()
         self._init_pose_net()
         self._load_models()
-        self._init_intrinsics()
         self._set_eval()
 
-        self.shift_h = 0.0
-        self.shift_w = 0.0
-
     def _update_model_info(self):
-        """ Obtain height, width and intrinsicis if available
+        """ Obtain height, width and intrinsicis from the encoder checkpoint
         """
 
         load_weights_folder = os.path.expanduser(
@@ -45,18 +40,11 @@ class BaseEvaluator:
         enc_dict = torch.load(
                 os.path.join(load_weights_folder, 'encoder.pth')
                 )
-        if self.opt.method == 'wild':
-            self.width = 416
-            self.height = 128
-        else:
-            self.width = self.opt.width = enc_dict['width']
-            self.height = self.opt.height = enc_dict['height']
 
-        try:
-            self.repr_intrinsics = enc_dict['repr_intrinsics']
-        except:
-            self.repr_intrinsics = None
+        self.width = self.opt.width = enc_dict['width']
+        self.height = self.opt.height = enc_dict['height']
 
+        self.repr_intrinsics = enc_dict['repr_intrinsics']
 
     def _init_depth_net(self):
         raise NotImplementedError
@@ -66,19 +54,6 @@ class BaseEvaluator:
 
     def _load_models(self):
         raise NotImplementedError
-
-    def _init_intrinsics(self):
-        """ Return the intrinsics
-        """
-        # check if it was loaded from the model ckpts
-        if self.repr_intrinsics is not None:
-            return
-        if self.model_intrinsics is None:
-            self.repr_intrinsics = None
-        else:
-            assert isinstance(self.model_intrinsics, np.ndarray)
-            assert self.model_intrinsics.shape == (4, 4)
-            self.repr_intrinsics = self.model_intrinsics
 
     def _set_eval(self):
         for name in self.models:
@@ -97,15 +72,12 @@ class BaseEvaluator:
         """ Compute the 3D points corresponding to the input image
 
         """
-        
         if specified_intrinsics is not None:
             used_intrinsics = specified_intrinsics
-        elif self.model_intrinsics is not None:
-            used_intrinsics = self.model_intrinsics
         else:
-            raise RuntimeError('intrinsics not specified')
+            used_intrinsics = self.repr_intrinsics
 
-        _, _, depth = self.estimate_depth(img)
+        _, depth = self.estimate_depth(img)
         meshgrid = np.meshgrid(range(self.width), range(self.height),
                                indexing='xy')
         meshgrid.append(np.ones((self.height, self.width)))
@@ -120,7 +92,7 @@ class BaseEvaluator:
                                  id_coords, depth[0,0,:,:])
         return cloud_pts.detach().cpu().numpy()
 
-    def _get_color_depthmap(self, disp):
+    def _color_disp(self, disp):
         disp_resized_np = disp.squeeze().detach().cpu().numpy()
         vmax = np.percentile(disp_resized_np, 95)
         normalizer = mpl.colors.Normalize(vmin=disp_resized_np.min(), vmax=vmax)
@@ -130,31 +102,4 @@ class BaseEvaluator:
                     disp_resized_np)[:, :, :3] * 255
                 ).astype(np.uint8)
         return colormapped_im
-
-    def estimate_masked_depths(self, img, masks, scale_factor,
-                               output_colordepth=False, conf_threshold=0.5):
-        pil_image = Image.fromarray(img)
-        img = pil_image.copy()
-        for m in range(len(masks)):
-            masks[m] = np.array(masks[m])
-        if scale_factor == 0.0:
-            scale = 1.0
-        else:
-            scale = scale_factor
-
-        # PREDICTION
-        disp, scaled_disp, depth = self.estimate_depth(pil_image)
-        depth = depth.squeeze(1).detach().cpu().numpy() # (1, H, W)
-        depth *= scale
-
-        masked_depths = []
-        if len(masks) > 0:
-            stacked_masks = np.stack(masks)
-            stacked_masks = (stacked_masks > conf_threshold).astype(np.uint8) # (N, H, W)
-
-            for idx, bool_mask in enumerate(stacked_masks == 1):
-                masked_depths.append(depth[0][bool_mask])
-        if output_colordepth:
-            return depth.transpose(1,2,0), masked_depths, self._get_color_depthmap(disp)
-        return depth.transpose(1,2,0), masked_depths
 

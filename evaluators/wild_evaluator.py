@@ -9,12 +9,12 @@ from options import WildOptions
 from .base_evaluator import BaseEvaluator
 
 class WildEvaluator(BaseEvaluator):
-    def __init__(self, opt, model_intrinsics = None):
+    def __init__(self, opt):
         self.opt = opt
         if not hasattr(self, 'num_pose_frames'):
             self.num_pose_frames = 2 if self.opt.pose_model_input == "pairs" else len(self.opt.frame_ids)
         self.opt.models_to_load = ['encoder', 'depth', 'pose', 'motion']
-        super().__init__(self.opt, model_intrinsics)
+        super().__init__(self.opt)
 
     def _init_depth_net(self):
         WildTrainer._init_depth_net(self)
@@ -32,4 +32,6 @@ class WildEvaluator(BaseEvaluator):
             outputs = self.models['depth'](features)
         depth = outputs[("depth", 0)]
         disp = 1/depth
-        return disp, None, depth
+        disp_colormap = self._color_disp(disp)
+
+        return disp_colormap, depth

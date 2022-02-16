@@ -105,32 +105,27 @@ def image_resize(image, target_h, target_w, shift_h, shift_w,
 class ImageProcessor:
     """ Process images as model input
     """
-    def __init__(self, opts, model_h, model_w, cam_intrinsics = None):
+    def __init__(self, opts, height, width, cam_intrinsics = None):
         
         # acquire info to cut or crop images
-        self.cut = opts.cut
-        self.cut_h = opts.cut_h
-        self.cut_w = opts.cut_w
         self.shift_h = opts.shift_h
         self.shift_w = opts.shift_w
 
         # the resolution used to train the model
-        self.target_h = model_h
-        self.target_w = model_w
+        self.target_h = height
+        self.target_w = width
 
         # the camera intrinsics used to record the input images to self.process
         self.cam_intrinsics = cam_intrinsics
 
-    def process(self, img, target_intrinsics=None):
-        #img = self.cut_img(img, self.cut, cut_h = self.cut_h, cut_w = self.cut_w)
+    def process(self, img):
 
         self.cam_img_h, self.cam_img_w, _ = img.shape
-        # reproject images from source to target
-        if self.cam_intrinsics is not None and target_intrinsics is not None:
-            raise NotImplementedError
 
         if (self.target_h != self.cam_img_h or self.target_w != self.cam_img_w):
-            img, ratio, du, dv = image_resize(img, self.target_h, self.target_w, self.shift_h, self.shift_w)
+            img, ratio, du, dv = image_resize(img, self.target_h,
+                                              self.target_w, self.shift_h,
+                                              self.shift_w)
         else:
             # in the image_resize function, a grayscale input would be squeeze
             # due to the call of cv2.resize on the input
@@ -141,9 +136,10 @@ class ImageProcessor:
             ratio, du, dv = 1.0, 0, 0
 
         if self.cam_intrinsics is not None:
-            return img, self._adjust_intrinsics(self.cam_intrinsics, ratio, du, dv)
-        else:
-            return img
+            self.cam_intrinsics = self._adjust_intrinsics(
+                    self.cam_intrinsics, ratio, du, dv
+                    )
+        return img
 
     def _adjust_intrinsics(self, intrinsics, ratio, du, dv):
         intrinsics = np.copy(intrinsics)
@@ -152,7 +148,8 @@ class ImageProcessor:
         intrinsics[1,2] -= dv
         return intrinsics
 
-    def cut_img(self, img, cut, cut_h=720, cut_w=1280):
+    @staticmethod
+    def cut_img(img, cut, cut_h=720, cut_w=1280):
         """Crop out H720 x W1280 of a image
         This Function is to crop out a portion out of the input frame. 
         Since there is not following adjustment of intrinsics, it should only be 
@@ -173,34 +170,6 @@ class ImageProcessor:
             w_start, w_end = cut_w, 2*cut_w
 
         return img[h_start:h_end, w_start:w_end, :]
-
-    def _do_projection(self, img):
-        """
-        """
-        M = np.matmul(self.target_intrinsics,
-                      np.linalg.inv(self.cam_intrinsics))
-        dst = cv2.warpPerspective(img, M, (1280, 720))
-        non_blank_x, non_blank_y, dst = self._crop_non_black(dst)
-        return non_blank_x, non_blank_y, dst
-
-    def _crop_non_black(self, img):
-        """
-        """
-        # run once
-        # return du, dv, cropped_img
-        # buggy when the corners are black
-        binary_color_y = np.any(img, axis=1)
-        binary_color_y = np.any(binary_color_y, axis=-1)
-        binary_color_x = np.any(img, axis=0)
-        binary_color_x = np.any(binary_color_x, axis=-1)
-        cropped_img = img[binary_color_y][:, binary_color_x]
-        du = binary_color_x.argmax()
-        dv = binary_color_y.argmax()
-        # issue a warning
-        if max(du, dv) > 0:
-            print('[Warning]the projected img shifts from the up-left corner'
-                  ' it implies there is intrinsics mismatch')
-        return du, dv, cropped_img
         
 def make_boxifier(margin=1/40):
     h_start, h_end = 0, 0
@@ -224,3 +193,18 @@ def make_boxifier(margin=1/40):
         w_end = min(-1, w_end+int(w*margin))
         return img[h_start:h_end, w_start:w_end]
     return boxifier
+
+def concat_depth_img(disp_colormap, img, shift_h=0.0, darkening=32):
+    """Concatenate errormap, dephtmap and the camera img"""
+    i_h, i_w, _ = img.shape
+    resized_maps = []
+    h, w, _ = disp_colormap.shape
+    target_h = int(h * i_w/w)
+    resized_maps.append(cv2.resize(disp_colormap, (i_w, target_h)))
+    img = img.astype(np.int16)
+    img[:int(shift_h*i_h), :] -= darkening
+    img[int(shift_h*i_h)+target_h:, :] -= darkening
+    img = img.clip(min=0)
+    img = img.astype(np.uint8)
+    img_depth = np.concatenate(resized_maps + [img], axis=0)
+    return img_depth

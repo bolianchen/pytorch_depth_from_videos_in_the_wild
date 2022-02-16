@@ -74,40 +74,14 @@ class dotdict(dict):
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
 
-def get_model_opt(model_path, method=None):
+def get_model_opt(model_path):
     """ Get the options to initialize a model evaluator
     """
     opt_path = os.path.dirname(model_path.rstrip('/')) + '/opt.json'
-    if os.path.isfile(opt_path):
-        # load the options used while training the model
-        opt = json.load(open(opt_path))
-        opt = dotdict(opt)
-        opt.load_weights_folder = model_path
-    else:
-        # for models without the opt.json, then check the 'method' argument
-        # if it is not specified, try monodepth2
-        # when using the model released by the official repo
-        # apply monodepth2 default options 
-        if method is None or method == '':
-            method = 'monodepth2'
-        opt, _ = opts[method]().parse()
-
-        # try to load checkpoints from the folder
-        try:
-            ckpts = list(
-                filter(lambda s: s.find('.pth')!=-1, os.listdir(model_path))
-                )
-            assert len(ckpts) >= 4, 'not a valid checkpoint path'
-            opt.load_weights_folder = model_path
-
-        # if the above trial fails, load monodepth2 officially released models
-        except:
-            download_model_if_doesnt_exist(model_path)
-            #TODO: refine the line below to enhance generalarity
-            opt.load_weights_folder = os.path.join('models', model_path)
-
-    if opt.method is None:
-        opt.method = method
+    # load the options used while training the model
+    opt = json.load(open(opt_path))
+    opt = dotdict(opt)
+    opt.load_weights_folder = model_path
 
     return opt
 
@@ -130,3 +104,4 @@ def args_validity_check(*unknown_args):
         contained = [(arg in ua) for ua in unknown_args[1:]]
         assert not all(contained), (
         f"unrecognized argument {arg} by all parsers")
+

@@ -1,6 +1,7 @@
 import os
 import time
 import json
+import shutil
 from tqdm import tqdm
 import numpy as np
 import torch
@@ -19,7 +20,9 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 import datasets
 from datasets.auxiliary_datasets import ImageDataset
 from lib.utils import sec_to_hm_str, same_seeds, readlines
-from lib.torch_layers import *
+from lib.torch_layers import select_weight_initializer, BackprojectDepth, \
+                             SSIM, WeightedSSIM, l1_error, \
+                             weighted_l1_error
 
 class BaseTrainer:
     def __init__(self, options):
@@ -59,6 +62,9 @@ class BaseTrainer:
         self.num_total_steps = steps_per_epoch * self.opt.num_epochs
 
         self._init_backproject_depth() 
+
+        # add an option
+        self._compute_l1_error = l1_error
 
         if not self.opt.no_ssim: 
             self._init_ssim()

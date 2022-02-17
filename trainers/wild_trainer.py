@@ -5,6 +5,7 @@ import json
 from tqdm import tqdm
 import numpy as np
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
@@ -16,7 +17,12 @@ import datasets
 from networks import wild_nets
 from .base_trainer import BaseTrainer
 from lib.img_processing import normalize_image, normalize_trans
-from lib.torch_layers import *
+from lib.torch_layers import combine, make_randomized_layernorm, \
+                             compute_projected_rotation, \
+                             compute_projected_translation, \
+                             compute_projected_pixcoords, \
+                             matrix_from_angles, get_motion_smooth_loss, \
+                             get_smooth_loss, weighted_average
 
 class WildTrainer(BaseTrainer):
     def __init__(self, options):
@@ -140,7 +146,7 @@ class WildTrainer(BaseTrainer):
         return outputs, losses
 
     def _update_depths(self, inputs, outputs):
-        """Returns depths for all frames"""
+        """Save depths of all the frames to inputs"""
         for frame_id in self.opt.frame_ids:
             features = self.models['encoder'](
                     inputs['color_aug', frame_id, 0]
@@ -151,7 +157,7 @@ class WildTrainer(BaseTrainer):
                 outputs[('depth', frame_id, scale)] = depths[('depth', scale)]
 
     def _update_poses(self, inputs, outputs):
-        """Returns all the relative poses"""
+        """Save relative poses of all the frames to inputs"""
 
         frame_ids = sorted(self.opt.frame_ids) # [-1, 0, 1]
         num_pairs = len(self.opt.frame_ids) - 1
@@ -167,7 +173,7 @@ class WildTrainer(BaseTrainer):
             self._predict_pose(inputs, outputs, tf, sf)
 
     def compute_losses(self, inputs, outputs):
-        """Compute the final weighted loss"""
+        """Compute the final weighted loss to run backward propagation"""
         losses = {}
         frame_ids = sorted(self.opt.frame_ids) # -1, 0, 1
         num_pairs = len(self.opt.frame_ids) - 1
@@ -207,14 +213,13 @@ class WildTrainer(BaseTrainer):
 
         return losses
 
-
     def _predict_pose(self, inputs, outputs, source_frame_id, target_frame_id):
         """Returns pose prediction for a single pair of frames
 
         estimate the pose from the source frame to the target frame
             by feeding [target image, source image]
-
         """
+
         features = [inputs['color_aug', target_frame_id, 0],
                     inputs['color_aug', source_frame_id, 0]]
         pose_inputs = torch.cat(features, 1)
@@ -247,9 +252,14 @@ class WildTrainer(BaseTrainer):
         # use source_frame segmentation mask, normal scale
         # mask should composed of 0 and 1 in float format
         if self.opt.seg_mask != 'none':
+            obj_masked_t = inputs['objects_being_masked'].float()
+            obj_masked_t = obj_masked_t[..., None, None, None]
+            obj_masked_t = obj_masked_t.repeat(1, 3, 1, 1)
+            outputs['objects_being_masked_tensor'] = obj_masked_t
+            use_res_trans = 1 - outputs['objects_being_masked_tensor']
             trans_field = self._compute_trans_field(
                     translation,
-                    res_trans,
+                    res_trans * use_res_trans,
                     inputs['mask', source_frame_id, 0])
         else:
             trans_field = self._compute_trans_field(translation, res_trans)
@@ -288,17 +298,8 @@ class WildTrainer(BaseTrainer):
 
         1. estimate projected coordinates onto the target frame from the 
            grid points of the source frame.
-        2. reconstruct the contents of the source frame by sampling the true
+        2. reconstruct the contents of the source frame by sampling the actual
            contents of the target frame
-
-        depth_consistency_loss
-        reconstr_loss
-        ssim_loss
-        rot_loss
-        trans_loss
-        TODO:
-            where stop_gradient should be added
-            the correctness of using F.grid_sample
         """
 
         source_scale = 0
@@ -313,10 +314,8 @@ class WildTrainer(BaseTrainer):
         target_trans = outputs[("translation", target_frame_id, source_frame_id)]
         target_rot = outputs[("axisangle", target_frame_id, source_frame_id)]
         
-        # transformation from source to target
 
         for scale in self.opt.scales:
-            # scale-dependent, upscaled
             source_depth = F.interpolate(
                 outputs[('depth', source_frame_id, scale)],
                 [self.opt.height, self.opt.width],
@@ -329,10 +328,11 @@ class WildTrainer(BaseTrainer):
             # projected_depth of the target frame
             # (not estimated by the depth network)
             # mask represening the effectively projected coords
-            pix_coords, projected_depth, mask = compute_projected_pixcoords(
-                    proj_rot, proj_trans, source_depth)
+            pix_coords, projected_depth, effective_mask = (
+                    compute_projected_pixcoords(
+                        proj_rot, proj_trans,source_depth)
+                    )
             
-
             # reconstructed source images by sampling the corresponding pixels
             # of the target frame
             target_rgb_resampled = F.grid_sample(
@@ -348,12 +348,16 @@ class WildTrainer(BaseTrainer):
                 # reconstructed source frame by the target frame
                 outputs[('color', source_frame_id, target_frame_id)] = target_rgb_resampled
 
+            # a mask to discriminate valid coordinates to compute
+            # losses, not occluded and with effective projection
+            # projected_depth >= target_depth_resampled represents where
+            # occlusions may exist in the source frame
             source_frame_closer_to_cam = torch.logical_and(
                     projected_depth < target_depth_resampled,
-                    mask
+                    effective_mask
                     ).float()
             self._rgbd_consistency_loss(
-                    projected_depth, mask, source_rgb,
+                    projected_depth, effective_mask, source_rgb,
                     target_rgb_resampled, target_depth_resampled,
                     source_frame_closer_to_cam, losses)
 
@@ -363,13 +367,15 @@ class WildTrainer(BaseTrainer):
                                                 target_rot, target_trans, losses)
 
     def _update_loss(self, losses, loss_name, add_value):
+        """A helper function to update the value for a loss item"""
         try:
             losses[loss_name] += add_value
         except KeyError:
             losses[loss_name] = add_value
 
-    def _rgbd_consistency_loss(self, source_projected_depth, mask, source_rgb,
-                               target_rgb_resampled, target_depth_resampled,
+    def _rgbd_consistency_loss(self, source_projected_depth, effective_mask,
+                               source_rgb, target_rgb_resampled,
+                               target_depth_resampled,
                                source_frame_closer_to_cam, losses):
         """Compute depth and image consistency losses"""
 
@@ -391,14 +397,15 @@ class WildTrainer(BaseTrainer):
                 squared_depth_diff = torch.square(
                         target_depth_resampled - source_projected_depth)
 
-                depth_error_second_moment = self._weighted_average(
+                depth_error_second_moment = weighted_average(
                         squared_depth_diff,
                         source_frame_closer_to_cam) + 1e-4
 
+                # TODO: change effective_mask to source_frame_closer_to_cam
                 depth_proximity_weight = torch.mul(
                         torch.div(depth_error_second_moment,
                                   squared_depth_diff + depth_error_second_moment),
-                        mask.float()
+                        effective_mask.float()
                         )
                 # it is simply a running average
                 # prevent gradients from propagating through this node
@@ -464,6 +471,8 @@ class WildTrainer(BaseTrainer):
         def norm(x):
             return torch.square(x).sum(dim=-1)
 
+        # TODO: check how effective masks should be applied
+        #       objects_being_masked, only for the denominator
         trans_loss = torch.div(
                 torch.mul(source_frame_closer_to_cam, norm(trans_zero)),
                 1e-24 + norm(source_trans) + norm(target_trans)
@@ -471,24 +480,6 @@ class WildTrainer(BaseTrainer):
 
         self._update_loss(losses, 'rot_loss', rot_loss)
         self._update_loss(losses, 'trans_loss', trans_loss)
-
-    def _compute_l1_error(self, resampled_target, source, mask=None):
-        """ Helper function, may be moved out in the future"""
-        assert resampled_target.shape == source.shape
-        if mask != None:
-            assert resampled_target[:,0:1,:,:].shape == mask.shape
-
-        if mask is None:
-            error = torch.abs(resampled_target-source)
-        else:
-            error = torch.abs(resampled_target-source) * mask
-        return torch.mean(error)
-        
-    def _weighted_average(self, x, weights, epsilon=1.0):
-        """Helper function, may be moved out in the future"""
-        weighted_sum = torch.sum(torch.mul(x, weights), dim=(2,3), keepdim=True)
-        sum_of_weights = torch.sum(weights, axis=(2,3), keepdims=True)
-        return torch.div(weighted_sum, sum_of_weights + epsilon)
 
     def _compute_pairwise_motion_smoothness(self, inputs, outputs,
                                             source_frame_id, target_frame_id,

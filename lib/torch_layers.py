@@ -240,9 +240,11 @@ class WeightedSSIM(nn.Module):
         return torch.clamp((1 - ssim_n / ssim_d) / 2, 0, 1), average_pooled_weight
 
 def make_randomized_layernorm(noise_rampup_steps=10000):
+    """Return a RandomizedLayerNorm class
+    it is customized by the specifed noise_rampup_steps
+    """
 
     class RandomizedLayerNorm(nn.Module):
-        """Return layer normalized"""
         def __init__(self, num_features, affine=True):
             super(RandomizedLayerNorm, self).__init__()
             self.beta = torch.nn.Parameter(torch.zeros(num_features), requires_grad=affine)
@@ -322,7 +324,7 @@ def make_randomized_layernorm(noise_rampup_steps=10000):
     return RandomizedLayerNorm
 
 def select_weight_initializer(mode, *args, same_for_bias=False):
-    """
+    """Return a weight initializer
     """
 
     def initialize_weights(m):
@@ -343,6 +345,42 @@ def select_weight_initializer(mode, *args, same_for_bias=False):
             nn.init.constant_(m.bias.data, 0)
 
     return initialize_weights
+
+def weighted_average(x, weights, epsilon=1.0):
+    """Compute weighted average of x by weights
+    Args:
+        epsilon is added to denominator to prevent overflow
+    """
+    weighted_sum = torch.sum(torch.mul(x, weights), dim=(2,3), keepdim=True)
+    sum_of_weights = torch.sum(weights, axis=(2,3), keepdim=True)
+    return torch.div(weighted_sum, sum_of_weights + epsilon)
+
+def l1_error(resampled_target, source, mask=None):
+    """Compute l1 error"""
+    assert resampled_target.shape == source.shape
+
+    if mask is None:
+        error = torch.abs(resampled_target-source)
+    else:
+        assert resampled_target[:,0:1,:,:].shape == mask.shape
+        error = torch.abs(resampled_target-source) * mask
+    return torch.mean(error)
+
+def weighted_l1_error(resampled_target, source, mask=None, epsilon=1.0):
+    """Compute weighted l1 error"""
+    assert resampled_target.shape == source.shape
+    if mask is None:
+        error = torch.abs(resampled_target-source)
+        return torch.mean(error)
+    else:
+        assert resampled_target[:,0:1,:,:].shape == mask.shape
+        error = torch.abs(resampled_target-source)
+        weighted_error_sum = torch.sum(
+                torch.mul(error, mask), axis=(2,3), keepdim=True)
+        sum_of_weights = torch.sum(mask, axis=(2,3), keepdim=True)
+        result = torch.div(weighted_error_sum,
+                         sum_of_weights + epsilon).mean()
+        return result
 
 def get_smooth_loss(disp, img):
     """Computes the smoothness loss for a disparity image

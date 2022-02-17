@@ -254,12 +254,11 @@ class WildTrainer(BaseTrainer):
         if self.opt.seg_mask != 'none':
             obj_masked_t = inputs['objects_being_masked'].float()
             obj_masked_t = obj_masked_t[..., None, None, None]
-            obj_masked_t = obj_masked_t.repeat(1, 3, 1, 1)
             outputs['objects_being_masked_tensor'] = obj_masked_t
             use_res_trans = 1 - outputs['objects_being_masked_tensor']
             trans_field = self._compute_trans_field(
                     translation,
-                    res_trans * use_res_trans,
+                    res_trans * use_res_trans.repeat(1, 3, 1, 1),
                     inputs['mask', source_frame_id, 0])
         else:
             trans_field = self._compute_trans_field(translation, res_trans)
@@ -352,10 +351,30 @@ class WildTrainer(BaseTrainer):
             # losses, not occluded and with effective projection
             # projected_depth >= target_depth_resampled represents where
             # occlusions may exist in the source frame
-            source_frame_closer_to_cam = torch.logical_and(
-                    projected_depth < target_depth_resampled,
-                    effective_mask
-                    ).float()
+            # TODO add objects_being_masked_tensor into consideration
+            if self.opt.seg_mask != 'none':
+                # 1s for background; 0s for objects
+                reversed_seg_mask = 1 - inputs['mask', source_frame_id, scale]
+                # 1s for an input sequence being masked
+                objs_being_masked_t = outputs['objects_being_masked_tensor']
+
+                objs_not_masked = torch.clamp(
+                        reversed_seg_mask + (1-objs_being_masked_t),
+                        max=1.0)
+
+                source_frame_closer_to_cam = torch.logical_and(
+                        projected_depth < target_depth_resampled,
+                        effective_mask,
+                        )
+                source_frame_closer_to_cam = torch.logical_and(
+                        source_frame_closer_to_cam,
+                        objs_not_masked==1).float()
+            else:
+                source_frame_closer_to_cam = torch.logical_and(
+                        projected_depth < target_depth_resampled,
+                        effective_mask
+                        ).float()
+
             self._rgbd_consistency_loss(
                     projected_depth, effective_mask, source_rgb,
                     target_rgb_resampled, target_depth_resampled,

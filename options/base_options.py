@@ -230,12 +230,17 @@ class BaseOptions:
 
         # LOSS COMPUTATIONS options
         self.parser.add_argument('--no_ssim',
-                                 help='if set, disables ssim in the loss',
-                                 action='store_true')
+                                 action='store_true',
+                                 help='if set, disables ssim in the loss')
         self.parser.add_argument('--weighted_ssim',
                                  action = 'store_true',
                                  help='if true, use weighted ssim instead of '
                                       'ssim loss')
+        self.parser.add_argument('--use_weighted_l1',
+                                 action = 'store_true',
+                                 help='use weighted_l1 error which would not'
+                                      ' include the masked out regions into '
+                                      'the denominator')
 
         # SYSTEM options
         self.parser.add_argument('--no_cuda',

@@ -64,7 +64,10 @@ class BaseTrainer:
         self._init_backproject_depth() 
 
         # add an option
-        self._compute_l1_error = l1_error
+        if self.opt.use_weighted_l1:
+            self._compute_l1_error = weighted_l1_error
+        else:
+            self._compute_l1_error = l1_error
 
         if not self.opt.no_ssim: 
             self._init_ssim()

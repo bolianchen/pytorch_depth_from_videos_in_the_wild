@@ -519,6 +519,18 @@ class WildTrainer(BaseTrainer):
                 smooth_loss = get_smooth_loss(norm_disp, color)
                 self._update_loss(losses, 'smooth_loss', smooth_loss)
 
+    def post_warmup_init(self):
+        """Reinitialize the trainer after the warmup epochs"""
+        assert self.opt.save_frequency == 0
+        self.opt.load_weights_folder = os.path.join(
+                self.log_path, 'models', 'best')
+        self.opt.models_to_load = ['encoder', 'depth', 'pose', 
+                                   'intrinsics_head', 'scaler']
+        self.opt.prob_to_mask_objects = 0.0
+        # in order to load the pre-trained checkpoints
+        self.opt.overwrite_old = False
+        self.__init__(self.opt)
+
     def log(self, mode, inputs, outputs):
         """Write an event to the tensorboard events file
         """

@@ -3,6 +3,7 @@ import time
 import json
 import shutil
 from tqdm import tqdm
+import random
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -90,13 +91,16 @@ class BaseTrainer:
                 if self.opt.overwrite_old:
                     shutil.rmtree(self.log_path)
                 elif not self.distributed:
-                    inp = input(f">> Model name exists, do you want to "\
-                                f"override model name?[y:N]")
-                    if inp.lower()[0] == "y":
-                        shutil.rmtree(self.log_path)
+                    if self.opt.warmup_epochs > 0:
+                        print("Starting post-warmup training")
                     else:
-                        print(">> Stop training!")
-                        exit()
+                        inp = input(f">> Model name exists, do you want to "\
+                                    f"override model name?[y:N]")
+                        if inp.lower()[0] == "y":
+                            shutil.rmtree(self.log_path)
+                        else:
+                            print(">> Stop training!")
+                            exit()
                 else:
                     print(">>Model with the same name exists, set "\
                           "replce_old_model to enforce the overriding")
@@ -373,6 +377,7 @@ class BaseTrainer:
             self.writers['test'] = SummaryWriter(
                     os.path.join(self.log_path, 'test')
                     )
+
     def _close_writers(self):
         """
         Applicable to all the methodologies
@@ -408,7 +413,12 @@ class BaseTrainer:
         min_train_loss = np.inf
         min_val_loss = np.inf
 
-        for self.epoch in range(1,self.opt.num_epochs+1):
+        for self.epoch in range(
+                1, self.opt.warmup_epochs + self.opt.num_epochs + 1):
+
+            if self.epoch == self.opt.warmup_epochs + 1:
+                if self.opt.warmup_epochs > 0:
+                    self.post_warmup_init()
 
             if self.epoch == self.freeze_epoch + 1:
                 self.halfway_freezing()
@@ -443,6 +453,10 @@ class BaseTrainer:
 
     def halfway_freezing(self):
         """Freeze specific networks after freezing_epoch in train """
+        raise NotImplementedError
+
+    def post_warmup_init(self):
+        """Reinitialize the trainer after the warmup epochs"""
         raise NotImplementedError
 
     def val(self):

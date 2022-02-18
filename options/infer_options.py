@@ -25,22 +25,20 @@ class InferOptions:
 
         # TODO: Refactor as gen_data.py
         #  IMAGE PROCESSING for EVALUATIONS
-        self.parser.add_argument("--cut", type=str, default='',
-                                 choices=['', 'upleft', 'upright', 'downleft',
-                                          'downright'],
-                                 help="to cut videos from 4 fused cameras")
-        self.parser.add_argument("--cut_h", type=int, default=720,
-                                 help="height to cut")
-        self.parser.add_argument("--cut_w", type=int, default=1280,
-                                 help="width to cut")
-        self.parser.add_argument("--shift_h",
-                                 type=float,
-                                 default=0.0,
-                                 help="whether to align the resolution with KITTI")
-        self.parser.add_argument("--shift_w",
-                                type=float,
-                                default=0.0,
-                                help="whether to align the resolution with KITTI")
+        self.parser.add_argument('--trim',
+                                 nargs=4,
+                                 type=float, default=[0.0, 0.0, 0.0, 0.0],
+                                 help='romove the [left, right, top, bottom] '
+                                      'part of each frame by this proportion'
+                                      '; this operation WILL NOT induce '
+                                      'intrinsics adjustment')
+        self.parser.add_argument('--crop',
+                                 nargs=4,
+                                 type=float, default=[0.0, 0.0, 0.0, 0.0],
+                                 help='romove the [left, right, top, bottom] '
+                                      'part of each frame by this proportion'
+                                      '; this operation WILL induce '
+                                      'intrinsics adjustment')
 
     def parse(self):
         return self.parser.parse_known_args()

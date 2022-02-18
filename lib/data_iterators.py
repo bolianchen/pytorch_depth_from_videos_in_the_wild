@@ -28,13 +28,16 @@ class VideoReader:
         elif self.count > 0:
             raise StopIteration
 
+    def get_fps(self):
+        return self.vid_fps
+
 class ImageReader:
     """An iterator to iterate the images of a folder in ascending order
 
     It is adaptable when file_path is a single image
 
     """
-    def __init__(self, file_path, img_types=('.png', '.jpg')):
+    def __init__(self, file_path, img_types=('.png', '.jpg'), fps=None):
         self.img_paths = []
         if is_a_file(file_path, img_types):
             self.img_paths.append(file_path)
@@ -47,6 +50,7 @@ class ImageReader:
                         glob.glob(os.path.join(file_path, '*' + img_type))
                         )
             self.img_paths = sorted(self.img_paths)
+        self.fps = fps
 
     def __iter__(self):
         self.idx = 0
@@ -59,3 +63,6 @@ class ImageReader:
             return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         else:
             raise StopIteration
+
+    def get_fps(self):
+        return self.fps

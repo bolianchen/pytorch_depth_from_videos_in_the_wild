@@ -24,7 +24,7 @@ class DepthInference:
     def _init_img_processor(self):
         model_h, model_w = self.evaluator.get_training_res()
         self.img_processor = ImageProcessor(
-                self.args, model_h, model_w)
+                self.args.trim, self.args.crop, model_h, model_w)
 
     def _init_data_reader(self):
         """Make an image iterator
@@ -33,26 +33,26 @@ class DepthInference:
 
         if fp.endswith('mp4'):
             self.data_reader = VideoReader(fp)
-
         else:
             self.data_reader = ImageReader(fp)
 
     def infer(self):
         frame_results = {}
+        fps = self.data_reader.get_fps()
         for img in self.data_reader:
-            img_ori = ImageProcessor.cut_img(
-                    img, self.args.cut, cut_h=self.args.cut_h,
-                    cut_w=self.args.cut_w)
-            img = self.img_processor.process(img_ori)
+            img, img_with_raw_ar = self.img_processor.process(img)
             disp_colormap, _ = self.evaluator.estimate_depth(img)
-            disp_img = concat_depth_img(disp_colormap, img_ori, self.args.shift_h)
+            disp_img = concat_depth_img(disp_colormap, img_with_raw_ar,
+                                        self.args.crop[2])
             disp_img_bgr = cv2.cvtColor(disp_img, cv2.COLOR_RGB2BGR)
             cv2.imshow('disp_img', disp_img_bgr)
-            cv2.waitKey(1)
-
+            if fps is not None:
+                cv2.waitKey(int(1000/fps))
+            else:
+                # use fps 10 if not available
+                fps = 10
+                cv2.waitKey(int(1000/fps))
 
 if __name__ == '__main__':
-    
     depth_estimator = DepthInference(InferOptions().parse()[0])
     depth_estimator.infer()
-

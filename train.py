@@ -30,8 +30,8 @@ if __name__ == "__main__":
     method_initializer = argparse.ArgumentParser(description="Method Initializer")
     method_initializer.add_argument("--method",
                              type=str,
-                             required = True,
                              choices = ["wild"],
+                             default="wild",
                              help="depth estimation methodology to use")
     # GPU options
     method_initializer.add_argument("--gpus_to_use",

@@ -260,7 +260,8 @@ class BaseOptions:
         self.parser.add_argument('--save_frequency',
                                  type=int,
                                  default=0,
-                                 help='number of epochs between each save')
+                                 help='number of epochs between each save '
+                                      'only save the best checkpoint if set 0')
         self.parser.add_argument('--log_multiframe',
                                  action='store_true',
                                  help='save visual results of all the frames')

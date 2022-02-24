@@ -39,7 +39,11 @@ class DepthInference:
     def infer(self):
         frame_results = {}
         fps = self.data_reader.get_fps()
-        for img in self.data_reader:
+
+        if not os.path.exists(self.args.output_dir):
+            os.makedirs(self.args.output_dir)
+
+        for idx, img in enumerate(self.data_reader):
             img, img_with_raw_ar = self.img_processor.process(img)
             disp_colormap, _ = self.evaluator.estimate_depth(img)
             disp_img = concat_depth_img(disp_colormap, img_with_raw_ar,
@@ -52,6 +56,10 @@ class DepthInference:
                 # use fps 10 if not available
                 fps = 10
                 cv2.waitKey(int(1000/fps))
+            cv2.imwrite(
+                    os.path.join(self.args.output_dir, f'{idx:010d}.png'),
+                    disp_img_bgr
+                    )
 
 if __name__ == '__main__':
     depth_estimator = DepthInference(InferOptions().parse()[0])

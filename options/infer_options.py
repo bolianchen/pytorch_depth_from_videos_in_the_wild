@@ -16,7 +16,7 @@ class InferOptions:
         self.parser.add_argument("--input_path", type=str, required=True,
                                 help="path of a video or a folder of image")
         self.parser.add_argument("--output_dir", type=str,
-                                default="./", help="dir to save output image")
+                                default="./output", help="dir to save output image")
 
         # MODEL INITIALIZATION
         self.parser.add_argument('--model_path', type=str,

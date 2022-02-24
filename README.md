@@ -5,6 +5,10 @@
 This project is a Pytorch re-implementation of the following Google ICCV 2019 paper:  
 **[Depth from Videos in the Wild: Unsupervised Monocular Depth Learning from Unknown Cameras](https://arxiv.org/abs/1904.04998)**
 
+<p align="center">
+  <img src="demo/kitti_0926drive0001_0018.gif" width="600" />
+</p>
+
 ## Data
 
 We provide `gen_data.py` to generate training datasets. There are two types of datasets available:

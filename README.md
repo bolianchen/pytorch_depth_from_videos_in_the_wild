@@ -60,3 +60,10 @@ python gen_data.py \
 </details>
 
 More options for `gen_data.py` can be found in `options/gen_data_options.py`.
+
+## Train Models
+
+## Run Inference
+
+## Reference
+

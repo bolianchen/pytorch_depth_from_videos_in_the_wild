@@ -143,6 +143,7 @@ class BaseOptions:
         self.parser.add_argument('--seg_mask',
                                  type=str,
                                  choices=MASK,
+                                 default='mono',
                                  help='whether to use segmetation mask')
         self.parser.add_argument('--MIN_OBJECT_AREA',
                                  type=int,

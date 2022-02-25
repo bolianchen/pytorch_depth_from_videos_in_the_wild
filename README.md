@@ -78,4 +78,6 @@ Available pretrained models:
 * **KITTI416x128**: [download](https://drive.google.com/file/d/1uj3CNNw5buvxqNIJJmY30_9kRY0HpS9Z/view?usp=sharing)
 
 ## Reference
-
+* [Google Research vid2depth](https://github.com/tensorflow/models/tree/37ec31714f68255532b4c35f117bc33fd7f90692/research/vid2depth): we reused its codes to develop gen_data.py
+* [Niantic Labs monodepth2](https://github.com/nianticlabs/monodepth2): we followed its code structure and reused some of its auxiliary functions
+* [Official Google Tensorflow Repository](https://github.com/google-research/google-research/tree/57b60e7a7a5efc358adf4041a062ae435e6155be/depth_from_video_in_the_wild): we constructed the deeplearning networks and implemented their training based on it. 

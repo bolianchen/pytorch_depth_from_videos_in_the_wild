@@ -81,7 +81,7 @@ python train.py --data_path /path/to/save/the/generated_data    # the folder gen
 
 ## Run Inference
 ```
-python infer_depth --input_path path/to/a/folder/containing/images    # or path/to/a/video
+python infer_depth.py --input_path path/to/a/folder/containing/images    # or path/to/a/video
                    --model_path path/to/a/folder/containing/checkpoints    # keep the saved folder structure since its parent folder must have opt.json
 ```
 Available pretrained models:

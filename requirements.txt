@@ -1,0 +1,5 @@
+pyyaml=5.4.1
+pandas=1.2.5
+tqdm
+tensorboardx=2.2
+scikit-image=0.17.2

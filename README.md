@@ -14,6 +14,7 @@ The codes has been executed under: (Python 3.6.5 + Pytoch 1.7.1) and (Python 3.8
 
 A [conda environment](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-with-commands) is recommended:
 * [install pytoch and the related modules](https://pytorch.org/get-started/previous-versions/)
+* install the other required modules
 ```
 pip install opencv-python
 conda install --file requirements.txt
@@ -82,7 +83,7 @@ python train.py --data_path /path/to/save/the/generated_data    # the folder gen
 ## Run Inference
 ```
 python infer_depth.py --input_path path/to/a/folder/containing/images    # or path/to/a/video
-                   --model_path path/to/a/folder/containing/checkpoints    # keep the saved folder structure since its parent folder must have opt.json
+                      --model_path path/to/a/folder/containing/checkpoints    # keep the saved folder structure since its parent folder must have opt.json
 ```
 Available pretrained models:
 * **KITTI416x128**: [download](https://drive.google.com/file/d/1uj3CNNw5buvxqNIJJmY30_9kRY0HpS9Z/view?usp=sharing)

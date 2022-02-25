@@ -40,7 +40,7 @@ python gen_data.py \
 
 Training datasets can also be generated from your own videos under the same folder.   
   
-[Optional] If the camera intrinsics are known, please put them in a text file that contains the 9 entries of your flattented camera intrinsics.
+*[Optional]* If the camera intrinsics are known, please put the 9 entries of its flattented camera intrinsics in a text file.
 ```
 1344.8 0.0 640.0 0.0 1344.8 360.0 0.0 0.0 1.0
 ```

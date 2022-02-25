@@ -83,4 +83,4 @@ Available pretrained models:
 * [Official Google Tensorflow Repository](https://github.com/google-research/google-research/tree/57b60e7a7a5efc358adf4041a062ae435e6155be/depth_from_video_in_the_wild): we constructed the deeplearning networks and implemented their training based on it. 
 
 ## Updates
-**Feb 25th, 2022** this project was made public!
+**(Feb 25th, 2022)** this project was made public!

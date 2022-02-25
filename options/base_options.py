@@ -117,12 +117,14 @@ class BaseOptions:
                                       ' False for jpg')
         self.parser.add_argument('--height',
                                  type=int,
-                                 help='input image height',
-                                 default=128)
+                                 default=128,
+                                 help='input image height, please set a '
+                                      'multiple of 32')
         self.parser.add_argument('--width',
                                  type=int,
-                                 help='input image width',
-                                 default=416)
+                                 default=416,
+                                 help='input image width, please set a '
+                                      'multiple of 32')
         self.parser.add_argument('--scales',
                                  nargs='+',
                                  type=int,

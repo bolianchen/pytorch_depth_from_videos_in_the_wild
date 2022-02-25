@@ -46,8 +46,10 @@ def image_resize(image, target_h, target_w, shift_h, shift_w,
 
     (raw_h, raw_w) = image.shape[:2]
 
-    assert raw_h >= target_h, 'must be downscaling'
-    assert raw_w >= target_w, 'must be downscaling'
+    assert raw_h >= target_h and raw_w >= target_w, f'input image size '\
+            f'is {image.shape[:2]}, at least one of its dimentions is '\
+            f'smaller than the target size to convert ({target_h}, {target_w}) '\
+            f'please set --width or --height smaller'
 
     if target_h/raw_h <= target_w/raw_w:
         # calculate the ratio of the width and construct the dimensions

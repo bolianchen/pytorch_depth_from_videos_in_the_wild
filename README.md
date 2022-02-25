@@ -74,5 +74,8 @@ python train.py --data_path /path/to/save/the/generated_data    # the folder gen
 python infer_depth --input_path path/to/a/folder/containing/images    # or path/to/a/video
                    --model_path path/to/a/folder/containing/checkpoints    # keep the saved folder structure since its parent folder must have opt.json
 ```
+Available pretrained models:
+* **KITTI416x128**: [download](https://drive.google.com/file/d/1uj3CNNw5buvxqNIJJmY30_9kRY0HpS9Z/view?usp=sharing)
+
 ## Reference
 

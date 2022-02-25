@@ -52,7 +52,7 @@ python gen_data.py \
 --dataset_name video \
 --dataset_dir /path/to/your/video_folder \
 --save_dir /path/to/save/the/generated_data \
---intrinsics /path/to/your/camera_intrinsics_file \ # None if not set, default intrinsics are produced according to IPhone 
+--intrinsics /path/to/your/camera_intrinsics_file \ # If not set, default intrinsics are produced according to IPhone 
 --mask color
 ```
   

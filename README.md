@@ -9,6 +9,16 @@ This project is a Pytorch re-implementation of the following Google ICCV 2019 pa
   <img src="demo/kitti_0926drive0001_0018.gif" width="600" />
 </p>
 
+## Environment Setup
+The codes has been executed under: (Python 3.6.5 + Pytoch 1.7.1) and (Python 3.8 + Pytoch 1.5 or Pytoch 1.7.1)
+
+A [conda environment](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-with-commands) is recommended:
+* [install pytoch and the related modules](https://pytorch.org/get-started/previous-versions/)
+```
+pip install opencv-python
+conda install --file requirements.txt
+```
+
 ## Data Preparation
 
 We provide `gen_data.py` to generate training datasets. There are two types of datasets available:

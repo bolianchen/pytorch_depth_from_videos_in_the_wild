@@ -60,7 +60,7 @@ Then generate the training dataset by running:
 ```
 python gen_data.py \
 --dataset_name video \
---dataset_dir /path/to/your/video_folder \
+--dataset_dir /path/to/your/video_folder \  # please do not use spaces in video names for now
 --save_dir /path/to/save/the/generated_data \
 --intrinsics /path/to/your/camera_intrinsics_file \ # If not set, default intrinsics are produced according to IPhone 
 --mask color

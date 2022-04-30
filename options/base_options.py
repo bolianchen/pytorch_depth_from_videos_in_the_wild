@@ -294,8 +294,13 @@ class BaseOptions:
         # except for the data_path option
         other_opts_for_mixed_dataset = ['subset_ratio', 'prob_to_mask_objects'] 
         for opt in other_opts_for_mixed_dataset:
-            if len(eval(f'self.options.{opt}')) == 1:
-                exec(f'self.options.{opt}=self.options.{opt}[0]')
+            # follow the user setting when multiple values are assigned
+            if self.options.warmup_epochs > 0 and opt == 'prob_to_mask_objects':
+                if len(eval(f'self.options.{opt}')) == 1:
+                    exec(f'self.options.{opt}=1.0')
+            else:
+                if len(eval(f'self.options.{opt}')) == 1:
+                    exec(f'self.options.{opt}=self.options.{opt}[0]')
 
         if self.options.model_name == '':
             curr_t = datetime.now().strftime('%y-%b-%d-%H-%M-%S')

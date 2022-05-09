@@ -15,6 +15,7 @@ The codes has been executed under: (Python 3.6.5 + Pytoch 1.7.1) and (Python 3.8
 A [conda environment](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-with-commands) is recommended:
 ```
 pip install opencv-python
+# cudatoolkit=xx.x should also be included below to use GPUs for training.
 conda install pytorch==1.7.1 torchvision==0.8.2 torchaudio==0.7.2 -c pytorch
 conda install --file requirements.txt
 ```

@@ -49,7 +49,7 @@ python gen_data.py \
 <details><summary><strong>VIDEOs</strong></summary>
 <p>  
 
-Training datasets can also be generated from your own videos under the same folder.   
+Training datasets can also be generated from your own videos (in mp4 format) under the same folder.
   
 *[Optional]* If the camera intrinsics are known, please put the 9 entries of its flattented camera intrinsics in a text file.
 ```

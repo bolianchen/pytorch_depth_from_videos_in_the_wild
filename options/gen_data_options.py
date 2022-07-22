@@ -117,16 +117,19 @@ class DataGenOptions:
                                  type=float, default=0.5,
                                  help='score threshold for Mask-RCNN model')
         self.parser.add_argument('--mask',
-                                 type=str, choices=['none', 'mono', 'color'],
-                                 default='mono',
+                                 type=str, choices=['none', 'mono', 'color', 
+                                     'instance'], default='mono',
                                  help='what segmentation masks to generate '
                                       'none: do not generate masks '
-                                      'mono: generate binary masks '
-                                      'color: pixel values vary on masks by '
-                                      'object instances')
+                                      'mono(HxW): generate binary masks '
+                                      'color(HxW): pixel values vary on masks by '
+                                      'object instances '
+                                      'instance(NxHxW): instance masks in npy '
+                                      'format with first dimension as instance '
+                                      'number')
         self.parser.add_argument('--single_process',
                                  action='store_true',
-                                 help='only use a single gpu process '
+                                 help='only use a single cpu process '
                                       'this option is mainly for debugging')
         self.parser.add_argument('--to_yaml',
                                  action='store_true',

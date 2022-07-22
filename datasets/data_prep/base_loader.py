@@ -85,12 +85,25 @@ class BaseLoader(object):
             labels = np.zeros_like(labels[:1])
         masks = masks.astype(np.uint8)
 
-
         # Throw away the masks that are not pedestrians or vehicles
         masks[labels == 0] *= 0 # __background__
         masks[labels == 5] *= 0 # airplane
         masks[labels == 7] *= 0 # train
         masks[labels > 8] *= 0
+
+        if self.mask == 'instance':
+            if masks.shape[0] != 0:
+                masks_to_keep = []
+                for label in labels:
+                    if label in [0, 5, 7] or label > 8:
+                        masks_to_keep.append(False)
+                    else:
+                        masks_to_keep.append(True)
+                return masks[masks_to_keep]
+            else:
+                return np.zeros(
+                        (1, ) + masks.shape[1:],
+                        dtype=np.uint8)
 
         mask_img = np.ones_like(masks, dtype=np.uint8) 
         if self.mask == 'mono':

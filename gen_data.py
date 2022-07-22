@@ -198,8 +198,12 @@ def _gen_mask(mrcnn_result, img_filepath, save_img_ext):
     Generate a mask and save it to file.
     """
     mask_img = dataloader.generate_mask(mrcnn_result)
-    mask_filepath = img_filepath[:-(len(save_img_ext)+1)] + f'-fseg.{save_img_ext}'
-    imageio.imsave(mask_filepath, mask_img.astype(np.uint8))
+    if mask_img.ndim == 2:
+        mask_filepath = img_filepath[:-(len(save_img_ext)+1)] + f'-fseg.{save_img_ext}'
+        imageio.imsave(mask_filepath, mask_img.astype(np.uint8))
+    elif mask_img.ndim == 3:
+        mask_filepath = img_filepath[:-(len(save_img_ext)+1)] + f'-fseg.npy'
+        np.save(mask_filepath, mask_img)
 
 def _gen_mask_star(params):
     return _gen_mask(*params)

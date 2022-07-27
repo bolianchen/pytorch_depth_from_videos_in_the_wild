@@ -99,11 +99,14 @@ class BaseLoader(object):
                         masks_to_keep.append(False)
                     else:
                         masks_to_keep.append(True)
-                return masks[masks_to_keep]
-            else:
+
+                masks =  masks[masks_to_keep]
+
+            if masks.shape[0] == 0:
                 return np.zeros(
                         (1, ) + masks.shape[1:],
                         dtype=np.uint8)
+            return masks
 
         mask_img = np.ones_like(masks, dtype=np.uint8) 
         if self.mask == 'mono':

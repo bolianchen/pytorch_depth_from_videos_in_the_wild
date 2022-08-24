@@ -176,7 +176,7 @@ class ImageProcessor:
         allowed_height = int(
                 img.shape[1] * self.target_height / self.target_width)
 
-        return img[:allowed_height, crop_left:crop_right, :], crop_top, crop_left
+        return img[:allowed_height, :, :], crop_top, crop_left
 
     def _scale_intrinsics(self, sx, sy, crop_top=0, crop_left=0):
         """Adjust intrinsics after resizing and then cropping
